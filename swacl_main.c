@@ -1,0 +1,1335 @@
+#include <linux/version.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/sched.h>
+#include <linux/spinlock.h>
+#include <linux/netfilter.h>
+#include <linux/unistd.h>
+
+#include <linux/delay.h>
+#include <linux/string.h>
+#include <linux/slab.h>
+#include <linux/vmalloc.h>
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+#include <linux/list.h>
+
+#include <linux/if_ether.h>
+#include <linux/if_vlan.h>
+#include <linux/if_arp.h>
+
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#include <linux/random.h>
+#include <linux/mutex.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+
+
+#include <net/switchdev.h>
+#include "swacl_if.h"
+#include "swacl_util.h"
+
+
+#define SWACL_IF_ACTION_ALL_FLAGE (SWACL_IF_ACTION_RULE_ADD|SWACL_IF_ACTION_RULE_DEL|SWACL_IF_ACTION_RULE_CLEAR)
+
+#define SWACL_IF_ACTION_CONFLICT1_FLAGE (SWACL_IF_ACTION_RULE_ADD|SWACL_IF_ACTION_RULE_DEL)
+#define SWACL_IF_ACTION_CONFLICT2_FLAGE (SWACL_IF_ACTION_RULE_ADD|SWACL_IF_ACTION_RULE_CLEAR)
+#define SWACL_IF_ACTION_CONFLICT3_FLAGE (SWACL_IF_ACTION_RULE_ADD|SWACL_IF_ACTION_RULE_COMMIT)
+#define SWACL_IF_ACTION_CONFLICT4_FLAGE (SWACL_IF_ACTION_RULE_ADD|SWACL_IF_ACTION_RULE_COMMIT)
+#define SWACL_IF_ACTION_CONFLICT5_FLAGE (SWACL_IF_ACTION_RULE_CLEAR|SWACL_IF_ACTION_RULE_DEL)
+#define SWACL_IF_ACTION_CONFLICT6_FLAGE (SWACL_IF_ACTION_RULE_DEL|SWACL_IF_ACTION_RULE_COMMIT)
+#define SWACL_IF_ACTION_CONFLICT7_FLAGE (SWACL_IF_ACTION_RULE_CLEAR|SWACL_IF_ACTION_RULE_COMMIT)
+
+#define SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE (SWACL_IF_ACTION_PERMIN|SWACL_IF_ACTION_DROP)
+
+#define SWACL_IF_FILTER_ALL_FLAGE	(SWACL_IF_filter_OUI|SWACL_IF_filter_ETHERTYPE|SWACL_IF_filter_DMAC|SWACL_IF_filter_SMAC \
+	                                 |SWACL_IF_filter_V4_PROTO|SWACL_IF_filter_V6_NXT_HEAD|SWACL_IF_filter_DIP|SWACL_IF_filter_DIP \
+	                                 |SWACL_IF_filter_V6_DIP|SWACL_IF_filter_V6_SIP|SWACL_IF_filter_DPORT|SWACL_IF_filter_SPORT \
+	                                 |SWACL_IF_filter_VLAN|SWACL_IF_filter_VLAN_PRI|SWACL_IF_filter_IFNAME|SWACL_IF_filter_DIP_PRE \
+	                                 |SWACL_IF_filter_SIP_PRE|SWACL_IF_filter_V6_DIP_PRE|SWACL_IF_filter_V6_SIP_PRE|SWACL_IF_filter_DPORT_END \
+	                                 |SWACL_IF_filter_SPORT_END|SWACL_IF_filter_DMAC_PRE|SWACL_IF_filter_SMAC_PRE)     
+struct swacl_rule_name_map_id{
+	unsigned int    idx;
+	char            *swacl_field_name;
+	unsigned int    field_flags;
+	int             is_support;
+	char            *help_str;
+	int (*parse_filter_func)(char * param_str,struct swacl_if_rule_entry * rule_entry);
+};
+
+struct swacl_rule_name_map_id g_swacl_rule_mapping[] = {
+	{SWACL_IF_ACTION_RULE_ADD_IDX     ,"rule_add"               ,SWACL_IF_ACTION_RULE_ADD,1,"rule add cmd",NULL},
+	{SWACL_IF_ACTION_RULE_DEL_IDX     ,"rule_del"               ,SWACL_IF_ACTION_RULE_DEL,1,"rule delete cmd",NULL},
+	{SWACL_IF_ACTION_RULE_CLEAR_IDX   ,"rule_clear"             ,SWACL_IF_ACTION_RULE_CLEAR,0,"rule clear cmd",NULL},
+	{SWACL_IF_ACTION_RULE_COMMIT_IDX  ,"rule_commit"            ,SWACL_IF_ACTION_RULE_COMMIT,0,"rule commit cmd",NULL},
+	{SWACL_IF_ACTION_RULE_PRIORITY_IDX,"rule_pri"               ,SWACL_IF_ACTION_RULE_PRIORITY,1,"rule ptiority (0 is highest)",NULL},
+	{SWACL_IF_ACTION_PERMIN_IDX       ,"act_permit"             ,SWACL_IF_ACTION_PERMIN,1,"permit rule action",NULL},
+	{SWACL_IF_ACTION_DROP_IDX         ,"act_drop"               ,SWACL_IF_ACTION_DROP,1,"drop rule action",NULL},
+	{SWACL_IF_ACTION_REDIRECT_IDX     ,"act_redirect"           ,SWACL_IF_ACTION_REDIRECT,0,"drop rule action",NULL},
+	{SWACL_IF_filter_OUI_IDX          ,"oui"                    ,SWACL_IF_filter_OUI,1,"filter OUI xx:xx:xx",swacl_if_parse_OUI},
+	{SWACL_IF_filter_ETHERTYPE_IDX    ,"ethertype"              ,SWACL_IF_filter_ETHERTYPE,1,"ethertype 0x0806",swacl_if_parse_ethertype},
+	{SWACL_IF_filter_DMAC_IDX         ,"dmac"                   ,SWACL_IF_filter_DMAC,1,"filter DMAC xx:xx:xx:xx:xx:xx",swacl_if_parse_dmac},
+	{SWACL_IF_filter_DMAC_PRE_IDX     ,"dmac_prefix"            ,SWACL_IF_filter_DMAC_PRE,1,"filter DMAC prefix 8,16,..,48",swacl_if_parse_dmac_prefix},
+	{SWACL_IF_filter_SMAC_IDX         ,"smac"                   ,SWACL_IF_filter_SMAC,1,"filter SMAC xx:xx:xx:xx:xx:xx",swacl_if_parse_smac},
+	{SWACL_IF_filter_SMAC_PRE_IDX     ,"smac_prefix"            ,SWACL_IF_filter_SMAC_PRE,1,"filter SMAC prefix 8,16,..,48",swacl_if_parse_smac_prefix},
+	{SWACL_IF_filter_IFNAME_IDX       ,"ifname"                 ,SWACL_IF_filter_IFNAME,1,"filter IFNAME (ifname ethx)",swacl_if_parse_ifname},
+	{SWACL_IF_filter_V4_PROTO_IDX     ,"v4_proto"               ,SWACL_IF_filter_V4_PROTO,1,"v4_proto 17(udp)",swacl_if_parse_v4proto},
+	{SWACL_IF_filter_V6_NXT_HEAD_IDX  ,"v6_next_header"         ,SWACL_IF_filter_V6_NXT_HEAD,1,"v6_next_header 17(udp)",swacl_if_parse_v6_nxt_header},
+	{SWACL_IF_filter_DIP_IDX          ,"dip"                    ,SWACL_IF_filter_DIP,1,"dip x.x.x.x",swacl_if_parse_dip},
+	{SWACL_IF_filter_DIP_PRE_IDX      ,"dip_prefix"             ,SWACL_IF_filter_DIP_PRE,1,"dip_prefix 8.step 8",swacl_if_parse_dip_prefix},
+	{SWACL_IF_filter_SIP_IDX          ,"sip"                    ,SWACL_IF_filter_SIP,1,"sip x.x.x.x",swacl_if_parse_sip},
+	{SWACL_IF_filter_SIP_PRE_IDX      ,"sip_prefix"             ,SWACL_IF_filter_SIP_PRE,1,"sip_prefix 8.step 8",swacl_if_parse_sip_prefix},
+	{SWACL_IF_filter_V6_DIP_IDX       ,"v6dip"                  ,SWACL_IF_filter_V6_DIP,1,"v6dip xx:xx....",swacl_if_parse_v6_dip},
+	{SWACL_IF_filter_V6_DIP_PRE_IDX   ,"v6dip_prefix"           ,SWACL_IF_filter_V6_DIP_PRE,1,"v6dip_prefix 8,step 8",swacl_if_parse_v6_dip_prefix},
+	{SWACL_IF_filter_V6_SIP_IDX       ,"v6sip"                  ,SWACL_IF_filter_V6_SIP,1,"v6sip xx:xx....",swacl_if_parse_v6_sip},
+	{SWACL_IF_filter_V6_SIP_PRE_IDX   ,"v6sip_prefix"           ,SWACL_IF_filter_V6_SIP_PRE,1,"v6sip_prefix 8,step 8",swacl_if_parse_v6_sip_prefix},
+	{SWACL_IF_filter_DPORT_IDX        ,"dport_start"            ,SWACL_IF_filter_DPORT,1,"dport_start 1024",swacl_if_parse_dport},
+	{SWACL_IF_filter_DPORT_END_IDX    ,"dport_end"              ,SWACL_IF_filter_DPORT_END,1,"dport_end 1026",swacl_if_parse_dport_end},
+	{SWACL_IF_filter_SPORT_IDX        ,"sport_start"            ,SWACL_IF_filter_SPORT,1,"sport_start 1024",swacl_if_parse_sport},
+	{SWACL_IF_filter_SPORT_END_IDX    ,"sport_end"              ,SWACL_IF_filter_SPORT_END,1,"sport_end 1026",swacl_if_parse_sport_end},
+	{SWACL_IF_filter_VLAN_IDX         ,"vlanid"                 ,SWACL_IF_filter_VLAN,1,"vlanid 4091",swacl_if_parse_filter_vlan},
+	{SWACL_IF_filter_VLAN_PRI_IDX     ,"pbit"                   ,SWACL_IF_filter_VLAN_PRI,1,"pbit 7",swacl_if_parse_filter_vlan_pbit},
+	{SWACL_IF_ACTION_VLANTAG_CHG_IDX  ,"vlanid_mark"            ,SWACL_IF_ACTION_VLANTAG_CHG,1,"change or vlanid",NULL},
+	{SWACL_IF_ACTION_PBIT_CHG_IDX     ,"pbit_mark"              ,SWACL_IF_ACTION_PBIT_CHG,1,"chnage or add pbit",NULL},
+} ;
+
+
+struct swacl_if_priv g_swacl_priv;
+//struct swacl_if_rule_entry g_swacl_rule_entry;
+extern int (*swacl_net_recv) (struct sk_buff ** pskb);
+
+
+static void 	
+swacl_if_reset_global_rule_entry(struct swacl_if_rule_entry * rule_entry)
+{
+	memset(rule_entry,0x0,sizeof(struct swacl_if_rule_entry));
+	INIT_LIST_HEAD(&rule_entry->swacl_entry);
+}
+static int
+swacl_if_add_rule_entry(struct swacl_if_rule_entry * rule_entry)
+{
+	struct swacl_if_rule_entry * rule_entry_pos,* rule_entry_nxt;
+	int i;
+	unsigned int match_filter=0;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){		
+		
+		match_filter = 0;
+		if((rule_entry_pos->filter_flags & rule_entry->filter_flags)==rule_entry->filter_flags){
+			for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
+				if((rule_entry_pos->filter_flags & (1<<i))){
+					switch((1<<i)) {
+						case SWACL_IF_filter_OUI:
+							if(memcmp(rule_entry_pos->oui,rule_entry->oui,OUI_LEN)==0){
+								match_filter |= SWACL_IF_filter_OUI;	
+							}
+							break;
+						case SWACL_IF_filter_ETHERTYPE:							
+							if(rule_entry_pos->ethertype == rule_entry->ethertype){
+								match_filter |= SWACL_IF_filter_ETHERTYPE;	
+							}
+							break;
+						case SWACL_IF_filter_DMAC:							
+							if(memcmp(rule_entry_pos->dmac,rule_entry->dmac,VLAN_ETH_ALEN)==0){
+								match_filter |= SWACL_IF_filter_DMAC;	
+							}
+							break;
+						case SWACL_IF_filter_DMAC_PRE:							
+							if(rule_entry_pos->dmac_prefix == rule_entry->dmac_prefix){
+								match_filter |= SWACL_IF_filter_DMAC_PRE;	
+							}
+							break;	
+						case SWACL_IF_filter_SMAC:							
+							if(memcmp(rule_entry_pos->smac,rule_entry->smac,VLAN_ETH_ALEN)==0){
+								match_filter |= SWACL_IF_filter_SMAC;	
+							}
+							break;
+						case SWACL_IF_filter_SMAC_PRE:							
+							if(rule_entry_pos->smac_prefix == rule_entry->smac_prefix){
+								match_filter |= SWACL_IF_filter_SMAC_PRE;	
+							}
+							break;
+						case SWACL_IF_filter_V4_PROTO:							
+							if(rule_entry_pos->v4_protocol == rule_entry->v4_protocol){
+								match_filter |= SWACL_IF_filter_V4_PROTO;	
+							}
+							break;	
+						case SWACL_IF_filter_V6_NXT_HEAD:							
+							if(rule_entry_pos->v6_next_header == rule_entry->v6_next_header){
+								match_filter |= SWACL_IF_filter_V6_NXT_HEAD;	
+							}
+							break;
+						case SWACL_IF_filter_DIP:							
+							if(rule_entry_pos->dip == rule_entry->dip){
+								match_filter |= SWACL_IF_filter_DIP;	
+							}
+							break;	
+						case SWACL_IF_filter_DIP_PRE:							
+							if(rule_entry_pos->dip_prefix == rule_entry->dip_prefix){
+								match_filter |= SWACL_IF_filter_DIP_PRE;	
+							}
+							break;	
+						case SWACL_IF_filter_SIP:							
+							if(rule_entry_pos->dip == rule_entry->dip){
+								match_filter |= SWACL_IF_filter_SIP;	
+							}
+							break;	
+						case SWACL_IF_filter_SIP_PRE:							
+							if(rule_entry_pos->dip_prefix == rule_entry->dip_prefix){
+								match_filter |= SWACL_IF_filter_SIP_PRE;	
+							}
+							break;
+						case SWACL_IF_filter_V6_DIP:
+							if(memcpy(&rule_entry_pos->v6dip,&rule_entry->v6dip,sizeof(struct in6_addr))==0){
+								match_filter |= SWACL_IF_filter_V6_DIP;
+							}
+							break;
+						case SWACL_IF_filter_V6_DIP_PRE:
+							if(rule_entry_pos->v6dip_prefix == rule_entry->v6dip_prefix){
+								match_filter |= SWACL_IF_filter_V6_DIP_PRE;
+							}
+							break;	
+						case SWACL_IF_filter_V6_SIP:
+							if(memcpy(&rule_entry_pos->v6sip,&rule_entry->v6sip,sizeof(struct in6_addr))==0){
+								match_filter |= SWACL_IF_filter_V6_SIP;
+							}
+							break;
+						case SWACL_IF_filter_V6_SIP_PRE:
+							if(rule_entry_pos->v6sip_prefix == rule_entry->v6sip_prefix){
+								match_filter |= SWACL_IF_filter_V6_SIP_PRE;
+							}
+							break;
+						case SWACL_IF_filter_DPORT:
+							if(rule_entry_pos->dport_start == rule_entry->dport_start){
+								match_filter |= SWACL_IF_filter_DPORT;
+							}
+							break;
+						case SWACL_IF_filter_DPORT_END:
+							if(rule_entry_pos->dport_end == rule_entry->dport_end){
+								match_filter |= SWACL_IF_filter_DPORT_END;
+							}
+							break;
+						case SWACL_IF_filter_SPORT:
+							if(rule_entry_pos->sport_start == rule_entry->sport_start){
+								match_filter |= SWACL_IF_filter_SPORT;
+							}
+							break;
+						case SWACL_IF_filter_SPORT_END:
+							if(rule_entry_pos->sport_end == rule_entry->sport_end){
+								match_filter |= SWACL_IF_filter_SPORT_END;
+							}
+							break;	
+						case SWACL_IF_filter_VLAN:
+							if(rule_entry_pos->vlantag_id == rule_entry->vlantag_id){
+								match_filter |= SWACL_IF_filter_VLAN;
+							}
+							break;	
+						case SWACL_IF_filter_VLAN_PRI:
+							if(rule_entry_pos->vlan_tag_pbit == rule_entry->vlan_tag_pbit){
+								match_filter |= SWACL_IF_filter_VLAN_PRI;
+							}
+							break;
+						default:
+							break;
+							
+					}				
+
+				}
+
+			}
+			
+			
+			if((rule_entry_pos->filter_flags & match_filter) == match_filter){
+				if(strcmp(rule_entry_pos->bind_ifname,rule_entry->bind_ifname)==0){
+					dbprintk("%s: rule exit (%ul)\n", rule_entry->bind_ifname,match_filter);
+					rcu_read_unlock();
+					return -1;		
+				}
+			}
+				
+		}
+
+	}
+	rcu_read_unlock();
+
+	mutex_lock(&g_swacl_priv.swacl_mutex);
+	if(!(rule_entry->action_flags&SWACL_IF_ACTION_DROP))
+		rule_entry->action_flags |= SWACL_IF_ACTION_PERMIN;
+	
+	
+	//add by priority
+	if(list_empty(&g_swacl_priv.swacl_list)){
+		list_add_rcu(&rule_entry->swacl_entry,&g_swacl_priv.swacl_list);
+		
+	}else{
+		rule_entry_nxt =NULL;
+		//found if same priority
+		list_for_each_entry(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){
+			
+			if(rule_entry->priority == rule_entry_pos->priority){					
+				rule_entry_nxt = rule_entry_pos;
+				
+			}				
+
+		}
+		//found same priority
+		if(rule_entry_nxt){
+			list_add_rcu(&rule_entry->swacl_entry,&rule_entry_nxt->swacl_entry);
+			goto add_entry_done;
+		}
+		
+		list_for_each_entry(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){
+			
+			if(rule_entry->priority < rule_entry_pos->priority){
+				///add pre
+				__list_add_rcu(&rule_entry->swacl_entry,rule_entry_pos->swacl_entry.prev,&rule_entry_pos->swacl_entry);
+				break;
+				
+			}
+			if(rule_entry->priority > rule_entry_pos->priority){
+				list_add_rcu(&rule_entry->swacl_entry,&rule_entry_pos->swacl_entry);
+				break;
+			    
+			}
+				
+
+		}
+	}
+add_entry_done:	
+	mutex_unlock(&g_swacl_priv.swacl_mutex);
+	return 0;
+
+
+}
+
+static int 
+swacl_if_del_rule_entry(struct swacl_if_rule_entry * rule_entry)
+{
+
+	struct swacl_if_rule_entry * rule_entry_pos;
+	int i,bfound=0;
+	unsigned int match_filter=0;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){	
+		
+		match_filter = 0;
+		if((rule_entry_pos->filter_flags & rule_entry->filter_flags)==rule_entry->filter_flags){
+			for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
+				if((rule_entry_pos->filter_flags & (1<<i))){
+					switch((1<<i)) {
+						case SWACL_IF_filter_OUI:
+							if(memcmp(rule_entry_pos->oui,rule_entry->oui,OUI_LEN)==0){
+								match_filter |= SWACL_IF_filter_OUI;	
+							}
+							break;
+						case SWACL_IF_filter_ETHERTYPE:							
+							if(rule_entry_pos->ethertype == rule_entry->ethertype){
+								match_filter |= SWACL_IF_filter_ETHERTYPE;	
+							}
+							break;
+						case SWACL_IF_filter_DMAC:							
+							if(memcmp(rule_entry_pos->dmac,rule_entry->dmac,VLAN_ETH_ALEN)==0){
+								match_filter |= SWACL_IF_filter_DMAC;	
+							}
+							break;
+						case SWACL_IF_filter_DMAC_PRE:							
+							if(rule_entry_pos->dmac_prefix == rule_entry->dmac_prefix){
+								match_filter |= SWACL_IF_filter_DMAC_PRE;	
+							}
+							break;	
+						case SWACL_IF_filter_SMAC:							
+							if(memcmp(rule_entry_pos->smac,rule_entry->smac,VLAN_ETH_ALEN)==0){
+								match_filter |= SWACL_IF_filter_SMAC;	
+							}
+							break;
+						case SWACL_IF_filter_SMAC_PRE:							
+							if(rule_entry_pos->smac_prefix == rule_entry->smac_prefix){
+								match_filter |= SWACL_IF_filter_SMAC_PRE;	
+							}
+							break;
+						case SWACL_IF_filter_V4_PROTO:							
+							if(rule_entry_pos->v4_protocol == rule_entry->v4_protocol){
+								match_filter |= SWACL_IF_filter_V4_PROTO;	
+							}
+							break;	
+						case SWACL_IF_filter_V6_NXT_HEAD:							
+							if(rule_entry_pos->v6_next_header == rule_entry->v6_next_header){
+								match_filter |= SWACL_IF_filter_V6_NXT_HEAD;	
+							}
+							break;
+						case SWACL_IF_filter_DIP:							
+							if(rule_entry_pos->dip == rule_entry->dip){
+								match_filter |= SWACL_IF_filter_DIP;	
+							}
+							break;	
+						case SWACL_IF_filter_DIP_PRE:							
+							if(rule_entry_pos->dip_prefix == rule_entry->dip_prefix){
+								match_filter |= SWACL_IF_filter_DIP_PRE;	
+							}
+							break;	
+						case SWACL_IF_filter_SIP:							
+							if(rule_entry_pos->dip == rule_entry->dip){
+								match_filter |= SWACL_IF_filter_SIP;	
+							}
+							break;	
+						case SWACL_IF_filter_SIP_PRE:							
+							if(rule_entry_pos->dip_prefix == rule_entry->dip_prefix){
+								match_filter |= SWACL_IF_filter_SIP_PRE;	
+							}
+							break;
+						case SWACL_IF_filter_V6_DIP:
+							if(memcpy(&rule_entry_pos->v6dip,&rule_entry->v6dip,sizeof(struct in6_addr))==0){
+								match_filter |= SWACL_IF_filter_V6_DIP;
+							}
+							break;
+						case SWACL_IF_filter_V6_DIP_PRE:
+							if(rule_entry_pos->v6dip_prefix == rule_entry->v6dip_prefix){
+								match_filter |= SWACL_IF_filter_V6_DIP_PRE;
+							}
+							break;	
+						case SWACL_IF_filter_V6_SIP:
+							if(memcpy(&rule_entry_pos->v6sip,&rule_entry->v6sip,sizeof(struct in6_addr))==0){
+								match_filter |= SWACL_IF_filter_V6_SIP;
+							}
+							break;
+						case SWACL_IF_filter_V6_SIP_PRE:
+							if(rule_entry_pos->v6sip_prefix == rule_entry->v6sip_prefix){
+								match_filter |= SWACL_IF_filter_V6_SIP_PRE;
+							}
+							break;
+						case SWACL_IF_filter_DPORT:
+							if(rule_entry_pos->dport_start == rule_entry->dport_start){
+								match_filter |= SWACL_IF_filter_DPORT;
+							}
+							break;
+						case SWACL_IF_filter_DPORT_END:
+							if(rule_entry_pos->dport_end == rule_entry->dport_end){
+								match_filter |= SWACL_IF_filter_DPORT_END;
+							}
+							break;
+						case SWACL_IF_filter_SPORT:
+							if(rule_entry_pos->sport_start == rule_entry->sport_start){
+								match_filter |= SWACL_IF_filter_SPORT;
+							}
+							break;
+						case SWACL_IF_filter_SPORT_END:
+							if(rule_entry_pos->sport_end == rule_entry->sport_end){
+								match_filter |= SWACL_IF_filter_SPORT_END;
+							}
+							break;	
+						case SWACL_IF_filter_VLAN:
+							if(rule_entry_pos->vlantag_id == rule_entry->vlantag_id){
+								match_filter |= SWACL_IF_filter_VLAN;
+							}
+							break;	
+						case SWACL_IF_filter_VLAN_PRI:
+							if(rule_entry_pos->vlan_tag_pbit == rule_entry->vlan_tag_pbit){
+								match_filter |= SWACL_IF_filter_VLAN_PRI;
+							}
+							break;		
+							
+					}				
+
+				}
+
+			}
+			
+			if((rule_entry_pos->filter_flags & match_filter) == match_filter){
+				bfound = 1;
+				break;
+			}
+				
+		}
+
+	}
+	rcu_read_unlock();
+
+	if(bfound){
+		mutex_lock(&g_swacl_priv.swacl_mutex);
+		list_del_rcu(&rule_entry_pos->swacl_entry);
+		mutex_unlock(&g_swacl_priv.swacl_mutex);
+		synchronize_rcu();
+		kfree(rule_entry_pos);
+		return 0;
+	}		
+	return -1;
+}
+static int swacl_if_commit_global_rule_entry(struct swacl_if_rule_entry * rule_entry)
+{
+	if(!(rule_entry->action_flags & SWACL_IF_ACTION_ALL_FLAGE))				
+		return SWACL_IF_ERROR_ACT;
+			
+	if((rule_entry->action_flags & SWACL_IF_ACTION_ALL_FLAGE)==SWACL_IF_ACTION_ALL_FLAGE)
+		return SWACL_IF_ERROR_ACT_CONFLICT;
+
+	if((rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT1_FLAGE)==SWACL_IF_ACTION_CONFLICT1_FLAGE ||
+	   (rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT2_FLAGE)==SWACL_IF_ACTION_CONFLICT2_FLAGE ||
+	   (rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT3_FLAGE)==SWACL_IF_ACTION_CONFLICT3_FLAGE ||
+	   (rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT4_FLAGE)==SWACL_IF_ACTION_CONFLICT4_FLAGE ||
+	   (rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT5_FLAGE)==SWACL_IF_ACTION_CONFLICT5_FLAGE ||
+	   (rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT6_FLAGE)==SWACL_IF_ACTION_CONFLICT6_FLAGE ||
+	   (rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT7_FLAGE)==SWACL_IF_ACTION_CONFLICT7_FLAGE )
+		return SWACL_IF_ERROR_ACT_CONFLICT;
+
+	if((rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE) == SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE)
+		return SWACL_IF_ERROR_PERMIT_CONFLICT;
+
+	if((rule_entry->action_flags & SWACL_IF_ACTION_PERMIN) &&  !(rule_entry->filter_flags&SWACL_IF_ACTION_VLANTAG_CHG))
+		return SWACL_IF_ERROR_PERMIT_CONFLICT1;
+	
+	if(!(rule_entry->filter_flags & SWACL_IF_filter_IFNAME))
+		return SWACL_IF_ERROR_NO_IFNAME;
+
+	if(!(rule_entry->filter_flags &SWACL_IF_FILTER_ALL_FLAGE))
+		return SWACL_IF_ERROR_FILTER;
+
+
+	if(rule_entry->action_flags & SWACL_IF_ACTION_RULE_DEL || rule_entry->action_flags & SWACL_IF_ACTION_RULE_CLEAR){
+		if(swacl_if_del_rule_entry(rule_entry) < 0)
+			return SWACL_IF_ERROR_DELETE;
+	}
+
+	if(rule_entry->action_flags & SWACL_IF_ACTION_RULE_ADD){
+		if(swacl_if_add_rule_entry(rule_entry) < 0)
+			return SWACL_IF_ERROR_ADD;
+	}
+		
+	return 0;
+}
+#if 0
+static void
+swacl_if_stop_rxtx(struct net_device *dev)
+{
+
+}
+
+static void
+swacl_if_start_rxtx(struct net_device *dev)
+{
+}
+#endif
+static int
+swacl_if_open(struct net_device *dev)
+{
+	try_module_get(THIS_MODULE);
+
+	netif_start_queue(dev);
+
+	return 0;
+}
+
+static int
+swacl_if_close(struct net_device *dev)
+{
+	netif_stop_queue(dev);
+
+	module_put(THIS_MODULE);
+	return 0;
+}
+
+static void
+swacl_if_set_rx_mode(struct net_device *dev)
+{
+}
+
+static int
+swacl_if_change_mtu(struct net_device *dev, int new_mtu)
+{
+	return -EOPNOTSUPP;
+}
+
+
+static int
+swacl_if_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+{
+	return -EOPNOTSUPP;
+}
+
+static struct net_device_stats *
+swacl_if_get_stats(struct net_device *dev)
+{	
+
+	return &g_swacl_priv.stats;
+
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+static const struct net_device_ops netdev_ops = {
+	.ndo_set_mac_address = eth_mac_addr,
+	.ndo_open = swacl_if_open,
+	.ndo_stop = swacl_if_close,
+	.ndo_set_rx_mode = swacl_if_set_rx_mode,
+	.ndo_get_stats = swacl_if_get_stats,
+	.ndo_change_mtu = swacl_if_change_mtu,
+	.ndo_do_ioctl = swacl_if_ioctl,
+};
+#endif
+
+static int
+swacl_if_match_action_rule(struct sk_buff **pskb,struct swacl_if_rule_entry * rule_entry)
+{
+	struct sk_buff *skb;
+	u16 vlan_tci = 0,vlan_pbit=0;
+	
+	skb= *pskb;
+	if(rule_entry == NULL ||skb == NULL){
+		return SWACL_IF_ERROR_MATCH_ACT;
+	}
+
+	if((rule_entry->action_flags&SWACL_IF_ACTION_DROP)){
+		return SWACL_IF_MATCH_ACT_DROP;
+	}
+
+	if(rule_entry->action_flags&SWACL_IF_ACTION_VLANTAG_CHG){
+		
+		if(rule_entry->action_flags&SWACL_IF_ACTION_PBIT_CHG)
+			vlan_pbit = rule_entry->pbit_mark;
+		else
+			vlan_pbit = 0;
+		
+		vlan_tci = (rule_entry->vlan_mark) | (vlan_pbit << VLAN_PRIO_SHIFT);
+
+		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vlan_tci);
+		
+	}
+	
+	return SWACL_IF_MATCH_ACT_OK;
+}
+
+int
+swacl_if_handle_frame(struct sk_buff **pskb)
+{
+	struct swacl_if_rule_entry * rule_entry_pos;
+	int i,j,cmp_b=0,cmp_m=0;
+	struct sk_buff *skb;
+	unsigned int match_filter=0,cmp_prex=0;
+	struct iphdr *iph;
+	struct ipv6hdr *ip6h;
+	unsigned short sport,dport;
+	struct tcphdr *tcp_hdr;
+	struct udphdr *udp_hdr;
+
+	
+	skb= *pskb;
+	
+	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
+		return RX_HANDLER_PASS;
+	
+	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){
+
+		if(strcmp(skb->dev->name,rule_entry_pos->bind_ifname) == 0){
+			for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
+				if((rule_entry_pos->filter_flags & (1<<i))){
+					switch((1<<i)){
+						case SWACL_IF_filter_OUI:
+							if(memcmp(rule_entry_pos->oui,eth_hdr(skb)->h_source,OUI_LEN)!=0){
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;									
+							}
+							match_filter |= SWACL_IF_filter_OUI;
+							break;
+						case SWACL_IF_filter_ETHERTYPE:							
+							if(rule_entry_pos->ethertype != ntohs(skb->protocol)){
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;								
+							}
+							match_filter |= SWACL_IF_filter_ETHERTYPE;	
+							break;
+						case SWACL_IF_filter_DMAC:
+							if(rule_entry_pos->filter_flags & SWACL_IF_filter_DMAC_PRE){
+								cmp_b = (rule_entry_pos->dmac_prefix+7)/8;
+								if(cmp_b != 1){
+									for(j=0;j<cmp_b-1;i++){
+										if(rule_entry_pos->dmac[j] != eth_hdr(skb)->h_dest[j]){	
+											i = SWACL_IF_FILTER_BIT_LEN;
+											continue;
+										}
+									}
+								}
+
+								cmp_m = rule_entry_pos->dmac_prefix%8;
+								if(cmp_m == 0){
+									if(rule_entry_pos->dmac[cmp_b-1] != eth_hdr(skb)->h_dest[cmp_b-1]){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+								}else{
+									cmp_prex = SWCAL_IF_PARSE_PREFIX << (8-cmp_m);	
+									if((rule_entry_pos->dmac[cmp_b-1]&cmp_prex) != (eth_hdr(skb)->h_dest[cmp_b-1]&cmp_prex)){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+								}
+								match_filter |= SWACL_IF_filter_DMAC | SWACL_IF_filter_DMAC_PRE;
+								
+							}
+							else{
+								if(memcmp(rule_entry_pos->dmac,eth_hdr(skb)->h_source,VLAN_ETH_ALEN)!=0){
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;	
+								}
+								match_filter |= SWACL_IF_filter_DMAC;
+							}
+							break;
+						case SWACL_IF_filter_DMAC_PRE:
+							//do nothing						
+							break;	
+						case SWACL_IF_filter_SMAC:							
+							if(rule_entry_pos->filter_flags & SWACL_IF_filter_SMAC_PRE){
+								cmp_b = (rule_entry_pos->smac_prefix+7)/8;
+								if(cmp_b != 1){
+									for(j=0;j<cmp_b-1;i++){
+										if(rule_entry_pos->smac[j] != eth_hdr(skb)->h_source[j]){
+											i = SWACL_IF_FILTER_BIT_LEN;
+											continue;
+										}
+									}
+								}
+
+								cmp_m = rule_entry_pos->dmac_prefix%8;
+								if(cmp_m == 0){
+									if(rule_entry_pos->smac[cmp_b-1] != eth_hdr(skb)->h_source[cmp_b-1]){	
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+								}else{
+									cmp_prex = SWCAL_IF_PARSE_PREFIX << (8-cmp_m);	
+									if((rule_entry_pos->smac[cmp_b-1]&cmp_prex) != (eth_hdr(skb)->h_source[cmp_b-1]&cmp_prex)){	
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+								}
+								match_filter |= SWACL_IF_filter_SMAC | SWACL_IF_filter_SMAC_PRE;
+								
+							}
+							else{
+								if(memcmp(rule_entry_pos->dmac,eth_hdr(skb)->h_source,VLAN_ETH_ALEN)!=0){
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;		
+								}
+								match_filter |= SWACL_IF_filter_SMAC;
+							}
+							break;
+						case SWACL_IF_filter_SMAC_PRE:							
+							//do nothing	
+							break;
+						case SWACL_IF_filter_V4_PROTO:	
+							if (ntohs(skb->protocol)!=ETH_P_IP ){
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;	
+							}
+							iph = (struct iphdr*)skb->data;
+							if (rule_entry_pos->v4_protocol != (u8)iph->protocol) {
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;							
+							}							
+							match_filter |= SWACL_IF_filter_V4_PROTO;
+							break;	
+						case SWACL_IF_filter_V6_NXT_HEAD:
+							if (ntohs(skb->protocol)!=ETH_P_IPV6){
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;	
+							}
+							ip6h = (struct ipv6hdr *)skb->data;							
+							if (rule_entry_pos->v6_next_header != ip6h->nexthdr) {
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;							
+							}							
+							match_filter |= SWACL_IF_filter_V6_NXT_HEAD;
+							break;
+						case SWACL_IF_filter_DIP:
+							if (ntohs(skb->protocol)!=ETH_P_IP){
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;	
+							}
+							iph = (struct iphdr *)skb->data;
+							if(rule_entry_pos->filter_flags & SWACL_IF_filter_DIP_PRE){
+								cmp_prex = SWCAL_IF_PARSE_4PREFIX << (32 -rule_entry_pos->dip_prefix);
+								if ((rule_entry_pos->dip & cmp_prex) != (ntohl(iph->daddr)& cmp_prex)) {
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;							
+								}
+								match_filter |= SWACL_IF_filter_DIP | SWACL_IF_filter_DIP_PRE;
+							}else{
+								if (rule_entry_pos->dip != ntohl(iph->daddr)) {
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;							
+								}
+								match_filter |= SWACL_IF_filter_DIP;
+							}
+							
+							break;	
+						case SWACL_IF_filter_DIP_PRE:							
+							//do nothing
+							break;	
+						case SWACL_IF_filter_SIP:
+							if (ntohs(skb->protocol)!=ETH_P_IP){
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;	
+							}
+							iph = (struct iphdr *)skb->data;
+							if(rule_entry_pos->filter_flags & SWACL_IF_filter_SIP_PRE){
+								cmp_prex = SWCAL_IF_PARSE_4PREFIX << (32 -rule_entry_pos->sip_prefix);
+								if ((rule_entry_pos->sip & cmp_prex) != (ntohl(iph->saddr)& cmp_prex)) {
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;							
+								}
+								match_filter |= SWACL_IF_filter_SIP | SWACL_IF_filter_SIP_PRE;
+							}else{
+								if (rule_entry_pos->sip != ntohl(iph->saddr)) {
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;							
+								}
+								match_filter |= SWACL_IF_filter_SIP;
+							}
+							break;	
+						case SWACL_IF_filter_SIP_PRE:							
+							//do nothing
+							break;
+						case SWACL_IF_filter_V6_DIP:
+							if (ntohs(skb->protocol)!=ETH_P_IPV6 ) {
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;							
+							}
+							
+							ip6h = (struct ipv6hdr*)skb->data;
+							
+							if(rule_entry_pos->filter_flags & SWACL_IF_filter_V6_DIP_PRE){
+								cmp_b = (rule_entry_pos->v6dip_prefix+7)/8;
+								if(cmp_b != 1 && cmp_b < 16){
+									for(j=0;j<cmp_b-1;i++){
+										if(rule_entry_pos->v6dip.s6_addr[j] != ip6h->daddr.s6_addr[j]){
+											i = SWACL_IF_FILTER_BIT_LEN;
+											continue;
+										}
+									}
+								}
+
+								cmp_m = rule_entry_pos->v6dip_prefix%8;
+								if(cmp_m == 0){
+									if(rule_entry_pos->v6dip.s6_addr[cmp_b-1] != ip6h->daddr.s6_addr[cmp_b-1]){	
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+								}else{
+									cmp_prex = SWCAL_IF_PARSE_PREFIX << (8-cmp_m);	
+									if((rule_entry_pos->v6dip.s6_addr[cmp_b-1]&cmp_prex) != (ip6h->daddr.s6_addr[cmp_b-1]&cmp_prex)){	
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+								}
+								match_filter |= SWACL_IF_filter_V6_DIP | SWACL_IF_filter_V6_DIP_PRE;
+							}else{
+								if (memcmp(&rule_entry_pos->v6dip,&ip6h->daddr,sizeof(struct in6_addr))!=0 ){
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;							
+								}
+								match_filter |= SWACL_IF_filter_V6_DIP;
+							}						
+						
+							break;
+						case SWACL_IF_filter_V6_DIP_PRE:
+							//do nothing
+							break;	
+						case SWACL_IF_filter_V6_SIP:
+							if (ntohs(skb->protocol)!=ETH_P_IPV6 ) {
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;							
+							}
+							
+							ip6h = (struct ipv6hdr *)skb->data;
+							
+							if(rule_entry_pos->filter_flags & SWACL_IF_filter_V6_SIP_PRE){
+								cmp_b = (rule_entry_pos->v6sip_prefix+7)/8;
+								if(cmp_b != 1 && cmp_b < 16){
+									for(j=0;j<cmp_b-1;i++){
+										if(rule_entry_pos->v6sip.s6_addr[j] != ip6h->saddr.s6_addr[j]){
+											i = SWACL_IF_FILTER_BIT_LEN;
+											continue;
+										}
+									}
+								}
+
+								cmp_m = rule_entry_pos->v6dip_prefix%8;
+								if(cmp_m == 0){
+									if(rule_entry_pos->v6sip.s6_addr[cmp_b-1] != ip6h->saddr.s6_addr[cmp_b-1]){	
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+								}else{
+									cmp_prex = SWCAL_IF_PARSE_PREFIX << (8-cmp_m);	
+									if((rule_entry_pos->v6sip.s6_addr[cmp_b-1]&cmp_prex) != (ip6h->saddr.s6_addr[cmp_b-1]&cmp_prex)){	
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+								}
+								match_filter |= SWACL_IF_filter_V6_SIP | SWACL_IF_filter_V6_SIP_PRE;
+							}else{
+								if (memcmp(&rule_entry_pos->v6sip,&ip6h->saddr,sizeof(struct in6_addr))!=0 ){
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;							
+								}
+								match_filter |= SWACL_IF_filter_V6_SIP;
+							}						
+						
+							break;
+						case SWACL_IF_filter_V6_SIP_PRE:
+							//do nothing
+							break;
+						case SWACL_IF_filter_DPORT:
+							if (ntohs(skb->protocol)!=ETH_P_IPV6 || ntohs(skb->protocol)!=ETH_P_IP) {
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;							
+							}
+							
+							if(ntohs(skb->protocol)==ETH_P_IP){
+								iph = (struct iphdr *)skb->data;								
+									
+								if(iph->protocol == IPPROTO_TCP){
+									tcp_hdr=(struct tcphdr *)(skb->data+sizeof(struct iphdr));									
+									dport = tcp_hdr->dest;
+								}
+								else if(iph->protocol == IPPROTO_UDP){
+									udp_hdr = (struct udphdr *)(skb->data+sizeof(struct iphdr));
+									dport = udp_hdr->dest;
+
+								}else{
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;
+								}
+								
+								if(rule_entry_pos->filter_flags & SWACL_IF_filter_DPORT_END){
+									if(rule_entry_pos->dport_start > dport || rule_entry_pos->dport_end < dport ){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+									match_filter |= SWACL_IF_filter_DPORT | SWACL_IF_filter_DPORT_END;
+								}else{
+									if(rule_entry_pos->dport_start != dport){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+									match_filter |= SWACL_IF_filter_DPORT ;
+								}
+								continue;
+								
+							}else if(ntohs(skb->protocol)==ETH_P_IPV6){
+								ip6h = (struct ipv6hdr *)skb->data;;
+																	
+								if(ip6h->nexthdr == NEXTHDR_TCP){
+									tcp_hdr = (struct tcphdr *)(skb->data+sizeof(struct ipv6hdr));
+									dport = tcp_hdr->dest;
+								}
+								else if(ip6h->nexthdr ==  NEXTHDR_UDP){
+									udp_hdr = (struct udphdr *)(skb->data+sizeof(struct ipv6hdr));
+									dport = udp_hdr->dest;
+
+								}else{
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;
+								}
+								
+								if(rule_entry_pos->filter_flags & SWACL_IF_filter_DPORT_END){
+									if(rule_entry_pos->dport_start > dport || rule_entry_pos->dport_end < dport ){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+									match_filter |= SWACL_IF_filter_DPORT | SWACL_IF_filter_DPORT_END;
+								}else{
+									if(rule_entry_pos->dport_start != dport){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+									match_filter |= SWACL_IF_filter_DPORT ;
+								}
+								continue;
+
+							}else{
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;
+							}							
+							
+							break;
+						case SWACL_IF_filter_DPORT_END:
+							//do nothing
+							break;
+						case SWACL_IF_filter_SPORT:
+							if (ntohs(skb->protocol)!=ETH_P_IPV6 || ntohs(skb->protocol)!=ETH_P_IP) {
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;							
+							}
+							if(ntohs(skb->protocol)==ETH_P_IP){
+								iph = (struct iphdr *)skb->data;
+																	
+								if(iph->protocol == IPPROTO_TCP){
+									tcp_hdr=(struct tcphdr *)(skb->data+sizeof(struct iphdr));									
+									sport = tcp_hdr->source;
+								}
+								else if(iph->protocol == IPPROTO_UDP){
+									udp_hdr = (struct udphdr *)(skb->data+sizeof(struct iphdr));
+									sport = udp_hdr->source;
+
+								}else{
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;
+								}
+								
+								if(rule_entry_pos->filter_flags & SWACL_IF_filter_SPORT_END){
+									if(rule_entry_pos->sport_start > sport || rule_entry_pos->sport_end < sport ){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+									match_filter |= SWACL_IF_filter_SPORT | SWACL_IF_filter_SPORT_END;
+								}else{
+									if(rule_entry_pos->sport_start != sport){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+									match_filter |= SWACL_IF_filter_SPORT ;
+								}								
+								
+							}else if(ntohs(skb->protocol)==ETH_P_IPV6){
+								ip6h = (struct ipv6hdr *)skb->data;;
+																	
+								if(ip6h->nexthdr == NEXTHDR_TCP){
+									tcp_hdr = (struct tcphdr *)(skb->data+sizeof(struct ipv6hdr));
+									sport = tcp_hdr->source;
+								}
+								else if(ip6h->nexthdr ==  NEXTHDR_UDP){
+									udp_hdr = (struct udphdr *)(skb->data+sizeof(struct ipv6hdr));
+									sport = udp_hdr->source;
+
+								}else{
+									i = SWACL_IF_FILTER_BIT_LEN;
+									continue;
+								}
+								
+								if(rule_entry_pos->filter_flags & SWACL_IF_filter_SPORT_END){
+									if(rule_entry_pos->sport_start > sport || rule_entry_pos->sport_end < sport ){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+									match_filter |= SWACL_IF_filter_SPORT | SWACL_IF_filter_SPORT_END;
+								}else{
+									if(rule_entry_pos->sport_start != sport){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										continue;
+									}
+									match_filter |= SWACL_IF_filter_SPORT ;
+								}								
+
+							}else{
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;
+							}
+							break;
+						case SWACL_IF_filter_SPORT_END:
+							//do nothing
+							break;	
+						case SWACL_IF_filter_VLAN:
+							if (!skb_vlan_tag_present(skb)) {
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;
+							}
+							if(rule_entry_pos->vlantag_id != skb_vlan_tag_get_id(skb)){
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;
+							}
+							match_filter |= SWACL_IF_filter_VLAN;
+							break;	
+						case SWACL_IF_filter_VLAN_PRI:
+							if (!skb_vlan_tag_present(skb)) {
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;
+							}
+							if(rule_entry_pos->vlan_tag_pbit != skb_vlan_tag_get_prio(skb)){
+								i = SWACL_IF_FILTER_BIT_LEN;
+								continue;	
+							}
+							match_filter |= SWACL_IF_filter_VLAN_PRI;
+							break;	
+
+					}
+				}
+			}
+		}
+		
+		if((match_filter & rule_entry_pos->filter_flags) == rule_entry_pos->filter_flags){
+			//do match action
+			if(swacl_if_match_action_rule(pskb,rule_entry_pos) == SWACL_IF_MATCH_ACT_DROP)
+			{
+				atomic_long_inc(&skb->dev->rx_dropped);
+				g_swacl_priv.stats.rx_packets++;
+				g_swacl_priv.stats.rx_bytes += skb->len;
+				g_swacl_priv.stats.rx_dropped++;
+				kfree_skb(skb);
+				return RX_HANDLER_CONSUMED;
+					
+			}
+
+			if(swacl_if_match_action_rule(pskb,rule_entry_pos) == SWACL_IF_MATCH_ACT_OK){
+
+				g_swacl_priv.stats.rx_packets++;
+				g_swacl_priv.stats.rx_bytes += skb->len;
+				g_swacl_priv.stats.tx_packets++;
+				g_swacl_priv.stats.tx_bytes += skb->len;
+				return RX_HANDLER_PASS;		
+			}
+		}
+	}
+	return RX_HANDLER_PASS;	
+}
+
+static void *__init
+swacl_if_probe_one(char *if_name, unsigned char *macaddr)
+{
+	struct net_device *dev;
+
+	// alloc_etherdev ensures aligned and zeroed private structures
+	if ((dev = alloc_etherdev(0)) == NULL) {
+		dbprintk("%s: alloc_etherdev() failed.\n", if_name);
+		return NULL;
+	}
+	// assign interface name
+	dev->name[0] = 0;	/* ask system to assign name for this ethernet */
+	strcpy(dev->name, if_name);	// eg: "trex_ifomci%d"
+	dev->name[IFNAMSIZ - 1] = 0;
+
+	// assign mac addr
+	memcpy(dev->dev_addr, macaddr, 6);
+
+	// set entries in the device structure
+	ether_setup(dev);	// general defaults
+	dev->base_addr = 0;
+	dev->irq = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+	dev->netdev_ops = &netdev_ops;
+#else
+	dev->open = swacl_if_open;
+	dev->stop = swacl_if_close;
+	dev->get_stats = swacl_if_get_stats;
+	dev->do_ioctl = swacl_if_ioctl;
+	dev->change_mtu = swacl_if_change_mtu;
+	dev->set_multicast_list = swacl_if_set_rx_mode;
+#endif
+	dev->watchdog_timeo = TX_TIMEOUT;
+	dev->tx_queue_len = 0;
+	dev->flags |= IFF_NOARP;
+#ifdef NETIF_F_CSUM_MASK
+	dev->features &= ~(NETIF_F_CSUM_MASK);	// linux 4 or later
+#else
+	dev->features &= ~(NETIF_F_ALL_CSUM);
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
+	dev->header_ops = NULL;
+#else
+	dev->hard_header_cache = NULL;
+#endif
+
+	// add interface to linux
+	if (register_netdev(dev)) {
+		dbprintk("%s: register_netdev() failed!\n", if_name);
+		kfree(dev);
+		return NULL;
+	}
+	// disable hw port
+	//swacl_if_stop_rxtx(dev);
+
+	// printk("%s: registered_netdev() as %s.\n", TREX_IFOMCI_NAME, dev->name);
+	return dev;
+}
+
+static int
+swacl_if_cmd_process(char *command)
+{
+	int argc,i,j,ret=0;
+	struct swacl_if_rule_entry * swacl_rule_entry_p;
+	char *argv[32];
+
+	argc = swacl_if_str2argv(command, argv, 32);
+	if (argc == 0)
+		return 0;
+
+	swacl_rule_entry_p = kmalloc(sizeof(struct swacl_if_rule_entry), GFP_KERNEL);
+	if (!swacl_rule_entry_p){
+		dbprintk("no memory\n");
+		return -ENOMEM;
+	}
+	for ( i = 0 ; i < argc ; i++)
+	{
+		for( j = 0;j < ARRAY_SIZE(g_swacl_rule_mapping);j++){
+			if(strcmp(argv[i], g_swacl_rule_mapping[j].swacl_field_name) == 0){
+
+				switch (g_swacl_rule_mapping[j].field_flags){
+
+					case SWACL_IF_ACTION_RULE_ADD:
+					case SWACL_IF_ACTION_RULE_DEL:
+					case SWACL_IF_ACTION_RULE_CLEAR:
+						swacl_if_reset_global_rule_entry(swacl_rule_entry_p);
+						swacl_rule_entry_p->action_flags|=g_swacl_rule_mapping[j].field_flags;
+					
+						break;
+#if 0						
+					case SWACL_IF_ACTION_RULE_COMMIT:
+						if(argc != 1){
+							dbprintk("%s:conflict command\n", g_swacl_rule_mapping[j].swacl_field_name);
+							goto err_return;
+							return 0;
+						}else{/*commit rule*/
+							if(swacl_if_commit_global_rule_entry(swacl_rule_entry_p) < 0){
+								dbprintk("%s: error idx (%d) \n", g_swacl_rule_mapping[j].swacl_field_name);
+								goto err_return;
+							}
+							printk("%s: success \n", g_swacl_rule_mapping[j].swacl_field_name);
+							return 0;
+						}
+#endif						
+				}
+			}
+		}
+	}
+
+	if( !(swacl_rule_entry_p->action_flags & SWACL_IF_ACTION_ALL_FLAGE) ){
+		dbprintk("no set action rule cmd");
+		goto err_return;
+	}
+	for ( i = 0 ; i < argc ; i++)
+	{
+		for( j = 0;j < ARRAY_SIZE(g_swacl_rule_mapping);j++){
+			if(strcmp(argv[i], g_swacl_rule_mapping[j].swacl_field_name) == 0){
+
+				if(!(g_swacl_rule_mapping[j].field_flags & SWACL_IF_FILTER_ALL_FLAGE)){
+					continue;
+				}
+				if(g_swacl_rule_mapping[j].parse_filter_func ==NULL)
+					continue;
+
+				if( i+1 >= argc ){
+					dbprintk("%s: error no parameter value \n", g_swacl_rule_mapping[j].swacl_field_name);	
+					goto err_return;
+				}
+				if ( (g_swacl_rule_mapping[j].parse_filter_func(argv[i+1],swacl_rule_entry_p) < 0)){
+					dbprintk("%s: parse err (%s)\n", g_swacl_rule_mapping[j].swacl_field_name
+									,argv[i+1]);
+					goto err_return;
+				}
+				 	
+						
+				 
+			}
+		}
+	}	
+
+	if((ret=swacl_if_commit_global_rule_entry(swacl_rule_entry_p)) < 0){
+		dbprintk("commit: error (%d) \n", ret);		
+	}
+
+err_return:
+	kfree(swacl_rule_entry_p);
+
+	printk("%s:  cmd error\n", SWACL_PROC_NAME_ROOT );
+	 
+	return 0;
+}
+
+static ssize_t
+swacl_if_proc_write(struct file *file, const char *buffer, size_t count, loff_t * data)
+{
+	static char cmd[1024];
+	if (count > 0 && count < 1024) {
+		if (copy_from_user(cmd, buffer, count))
+			return -EFAULT;
+		cmd[count - 1] = '\0';
+		swacl_if_cmd_process(cmd);
+	}
+	return count;
+}
+
+static int
+swacl_if_proc_read(struct seq_file *seq, void *v)
+{
+	
+	return 0;
+}
+
+static int
+swacl_if_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, swacl_if_proc_read, NULL);
+}
+
+static struct file_operations
+ swacl_proc_fop = {
+	.open = swacl_if_proc_open,
+	.write = swacl_if_proc_write,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+int
+swacl_if_proc_init(void)
+{
+	g_swacl_priv.swacl_pde = proc_create(SWACL_PROC_NAME_ROOT, S_IWUSR | S_IRUGO, NULL, &swacl_proc_fop);
+	if (!g_swacl_priv.swacl_pde)
+		return -ENOMEM;
+
+	return 0;
+}
+
+void
+swacl_if_proc_cleanup(void)
+{
+	remove_proc_entry(SWACL_PROC_NAME_ROOT, NULL);
+}
+
+static void
+swacl_if_cleanup(void)
+{
+
+	RCU_INIT_POINTER(swacl_net_recv, NULL);
+	swacl_if_proc_cleanup();
+	mutex_destroy(&g_swacl_priv.swacl_mutex);	
+	printk("unload %s module\n", SWACL_IF_NAME);
+}
+
+static int __init
+swacl_if_init(void)
+{
+	unsigned char macaddr_default[6] = { 0 };
+	memset(&g_swacl_priv,0x0,sizeof(struct swacl_if_priv));
+
+	// init macaddr_default
+	macaddr_default[1] = 0x95;	// 03 c1 -> omci
+	macaddr_default[2] = 0x74;
+	// register trex_ifomci/iftrap interface
+	get_random_bytes(&macaddr_default[3], 3);     // randomize lower 3 bytes of macaddr
+	g_swacl_priv.swacl_dev = swacl_if_probe_one(SWACL_IF_NAME, macaddr_default);
+	if (g_swacl_priv.swacl_dev == NULL) {
+		return -ENODEV;
+	}
+	INIT_LIST_HEAD(&g_swacl_priv.swacl_list);
+	mutex_init(&g_swacl_priv.swacl_mutex);	
+	swacl_if_proc_init();
+	
+	BUG_ON(swacl_net_recv);
+	RCU_INIT_POINTER(swacl_net_recv, swacl_if_handle_frame);
+
+	printk("load %s module\n", SWACL_IF_NAME);
+	return 0;
+
+}
+
+module_init(swacl_if_init);
+module_exit(swacl_if_cleanup);
+
+MODULE_AUTHOR("TREX Software");
+MODULE_LICENSE("Dual BSD/GPL");
+MODULE_DESCRIPTION("swacl ifnet driver");
+
