@@ -58,49 +58,79 @@ struct swacl_rule_name_map_id{
 	int             is_support;
 	char            *help_str;
 	int (*parse_filter_func)(char * param_str,struct swacl_if_rule_entry * rule_entry);
+	int (*to_str_func)(char * param_str,struct swacl_if_rule_entry * rule_entry);
 };
 
 struct swacl_rule_name_map_id g_swacl_rule_mapping[] = {
-	{SWACL_IF_ACTION_RULE_ADD_IDX     ,"rule_add"               ,SWACL_IF_ACTION_RULE_ADD,1,"rule add cmd",NULL},
-	{SWACL_IF_ACTION_RULE_DEL_IDX     ,"rule_del"               ,SWACL_IF_ACTION_RULE_DEL,1,"rule delete cmd",NULL},
-	{SWACL_IF_ACTION_RULE_CLEAR_IDX   ,"rule_clear"             ,SWACL_IF_ACTION_RULE_CLEAR,0,"rule clear cmd",NULL},
-	{SWACL_IF_ACTION_RULE_COMMIT_IDX  ,"rule_commit"            ,SWACL_IF_ACTION_RULE_COMMIT,0,"rule commit cmd",NULL},
-	{SWACL_IF_ACTION_RULE_PRIORITY_IDX,"rule_pri"               ,SWACL_IF_ACTION_RULE_PRIORITY,1,"rule ptiority (0 is highest)",NULL},
-	{SWACL_IF_ACTION_PERMIN_IDX       ,"act_permit"             ,SWACL_IF_ACTION_PERMIN,1,"permit rule action",NULL},
-	{SWACL_IF_ACTION_DROP_IDX         ,"act_drop"               ,SWACL_IF_ACTION_DROP,1,"drop rule action",NULL},
-	{SWACL_IF_ACTION_REDIRECT_IDX     ,"act_redirect"           ,SWACL_IF_ACTION_REDIRECT,0,"drop rule action",NULL},
-	{SWACL_IF_filter_OUI_IDX          ,"oui"                    ,SWACL_IF_filter_OUI,1,"filter OUI xx:xx:xx",swacl_if_parse_OUI},
-	{SWACL_IF_filter_ETHERTYPE_IDX    ,"ethertype"              ,SWACL_IF_filter_ETHERTYPE,1,"ethertype 0x0806",swacl_if_parse_ethertype},
-	{SWACL_IF_filter_DMAC_IDX         ,"dmac"                   ,SWACL_IF_filter_DMAC,1,"filter DMAC xx:xx:xx:xx:xx:xx",swacl_if_parse_dmac},
-	{SWACL_IF_filter_DMAC_PRE_IDX     ,"dmac_prefix"            ,SWACL_IF_filter_DMAC_PRE,1,"filter DMAC prefix 8,16,..,48",swacl_if_parse_dmac_prefix},
-	{SWACL_IF_filter_SMAC_IDX         ,"smac"                   ,SWACL_IF_filter_SMAC,1,"filter SMAC xx:xx:xx:xx:xx:xx",swacl_if_parse_smac},
-	{SWACL_IF_filter_SMAC_PRE_IDX     ,"smac_prefix"            ,SWACL_IF_filter_SMAC_PRE,1,"filter SMAC prefix 8,16,..,48",swacl_if_parse_smac_prefix},
-	{SWACL_IF_filter_IFNAME_IDX       ,"ifname"                 ,SWACL_IF_filter_IFNAME,1,"filter IFNAME (ifname ethx)",swacl_if_parse_ifname},
-	{SWACL_IF_filter_V4_PROTO_IDX     ,"v4_proto"               ,SWACL_IF_filter_V4_PROTO,1,"v4_proto 17(udp)",swacl_if_parse_v4proto},
-	{SWACL_IF_filter_V6_NXT_HEAD_IDX  ,"v6_next_header"         ,SWACL_IF_filter_V6_NXT_HEAD,1,"v6_next_header 17(udp)",swacl_if_parse_v6_nxt_header},
-	{SWACL_IF_filter_DIP_IDX          ,"dip"                    ,SWACL_IF_filter_DIP,1,"dip x.x.x.x",swacl_if_parse_dip},
-	{SWACL_IF_filter_DIP_PRE_IDX      ,"dip_prefix"             ,SWACL_IF_filter_DIP_PRE,1,"dip_prefix 8.step 8",swacl_if_parse_dip_prefix},
-	{SWACL_IF_filter_SIP_IDX          ,"sip"                    ,SWACL_IF_filter_SIP,1,"sip x.x.x.x",swacl_if_parse_sip},
-	{SWACL_IF_filter_SIP_PRE_IDX      ,"sip_prefix"             ,SWACL_IF_filter_SIP_PRE,1,"sip_prefix 8.step 8",swacl_if_parse_sip_prefix},
-	{SWACL_IF_filter_V6_DIP_IDX       ,"v6dip"                  ,SWACL_IF_filter_V6_DIP,1,"v6dip xx:xx....",swacl_if_parse_v6_dip},
-	{SWACL_IF_filter_V6_DIP_PRE_IDX   ,"v6dip_prefix"           ,SWACL_IF_filter_V6_DIP_PRE,1,"v6dip_prefix 8,step 8",swacl_if_parse_v6_dip_prefix},
-	{SWACL_IF_filter_V6_SIP_IDX       ,"v6sip"                  ,SWACL_IF_filter_V6_SIP,1,"v6sip xx:xx....",swacl_if_parse_v6_sip},
-	{SWACL_IF_filter_V6_SIP_PRE_IDX   ,"v6sip_prefix"           ,SWACL_IF_filter_V6_SIP_PRE,1,"v6sip_prefix 8,step 8",swacl_if_parse_v6_sip_prefix},
-	{SWACL_IF_filter_DPORT_IDX        ,"dport_start"            ,SWACL_IF_filter_DPORT,1,"dport_start 1024",swacl_if_parse_dport},
-	{SWACL_IF_filter_DPORT_END_IDX    ,"dport_end"              ,SWACL_IF_filter_DPORT_END,1,"dport_end 1026",swacl_if_parse_dport_end},
-	{SWACL_IF_filter_SPORT_IDX        ,"sport_start"            ,SWACL_IF_filter_SPORT,1,"sport_start 1024",swacl_if_parse_sport},
-	{SWACL_IF_filter_SPORT_END_IDX    ,"sport_end"              ,SWACL_IF_filter_SPORT_END,1,"sport_end 1026",swacl_if_parse_sport_end},
-	{SWACL_IF_filter_VLAN_IDX         ,"vlanid"                 ,SWACL_IF_filter_VLAN,1,"vlanid 4091",swacl_if_parse_filter_vlan},
-	{SWACL_IF_filter_VLAN_PRI_IDX     ,"pbit"                   ,SWACL_IF_filter_VLAN_PRI,1,"pbit 7",swacl_if_parse_filter_vlan_pbit},
-	{SWACL_IF_ACTION_VLANTAG_CHG_IDX  ,"vlanid_mark"            ,SWACL_IF_ACTION_VLANTAG_CHG,1,"change or vlanid",NULL},
-	{SWACL_IF_ACTION_PBIT_CHG_IDX     ,"pbit_mark"              ,SWACL_IF_ACTION_PBIT_CHG,1,"chnage or add pbit",NULL},
+	{SWACL_IF_filter_OUI_IDX          ,"oui"                    ,SWACL_IF_filter_OUI,1,"filter OUI xx:xx:xx"                   ,swacl_if_parse_OUI                  ,swacl_if_OUI_to_str},
+	{SWACL_IF_filter_ETHERTYPE_IDX    ,"ethertype"              ,SWACL_IF_filter_ETHERTYPE,1,"ethertype 0x0806"                ,swacl_if_parse_ethertype            ,swacl_if_ethertype_to_str},
+	{SWACL_IF_filter_DMAC_IDX         ,"dmac"                   ,SWACL_IF_filter_DMAC,1,"filter DMAC xx:xx:xx:xx:xx:xx"        ,swacl_if_parse_dmac                 ,swacl_if_dmac_to_str},
+	{SWACL_IF_filter_DMAC_PRE_IDX     ,"dmac_prefix"            ,SWACL_IF_filter_DMAC_PRE,1,"filter DMAC prefix 8,16,..,48"    ,swacl_if_parse_dmac_prefix          ,swacl_if_dmac_prefix_to_str},
+	{SWACL_IF_filter_SMAC_IDX         ,"smac"                   ,SWACL_IF_filter_SMAC,1,"filter SMAC xx:xx:xx:xx:xx:xx"        ,swacl_if_parse_smac                 ,swacl_if_smac_to_str},
+	{SWACL_IF_filter_SMAC_PRE_IDX     ,"smac_prefix"            ,SWACL_IF_filter_SMAC_PRE,1,"filter SMAC prefix 8,16,..,48"    ,swacl_if_parse_smac_prefix          ,swacl_if_smac_prefix_to_str},
+	{SWACL_IF_filter_IFNAME_IDX       ,"ifname"                 ,SWACL_IF_filter_IFNAME,1,"filter IFNAME (ifname ethx)"        ,swacl_if_parse_ifname               ,swacl_if_ifname_to_str},
+	{SWACL_IF_filter_V4_PROTO_IDX     ,"v4_proto"               ,SWACL_IF_filter_V4_PROTO,1,"v4_proto 17(udp)"                 ,swacl_if_parse_v4proto              ,swacl_if_v4proto_to_str},
+	{SWACL_IF_filter_V6_NXT_HEAD_IDX  ,"v6_next_header"         ,SWACL_IF_filter_V6_NXT_HEAD,1,"v6_next_header 17(udp)"        ,swacl_if_parse_v6_nxt_header        ,swacl_if_v6_nxt_header_to_str},
+	{SWACL_IF_filter_DIP_IDX          ,"dip"                    ,SWACL_IF_filter_DIP,1,"dip x.x.x.x"                           ,swacl_if_parse_dip                  ,swacl_if_dip_to_str},
+	{SWACL_IF_filter_DIP_PRE_IDX      ,"dip_prefix"             ,SWACL_IF_filter_DIP_PRE,1,"dip_prefix 8.step 8"               ,swacl_if_parse_dip_prefix           ,swacl_if_dip_prefix_to_str},
+	{SWACL_IF_filter_SIP_IDX          ,"sip"                    ,SWACL_IF_filter_SIP,1,"sip x.x.x.x"                           ,swacl_if_parse_sip                  ,swacl_if_sip_to_str},
+	{SWACL_IF_filter_SIP_PRE_IDX      ,"sip_prefix"             ,SWACL_IF_filter_SIP_PRE,1,"sip_prefix 8.step 8"               ,swacl_if_parse_sip_prefix           ,swacl_if_sip_prefix_to_str},
+	{SWACL_IF_filter_V6_DIP_IDX       ,"v6dip"                  ,SWACL_IF_filter_V6_DIP,1,"v6dip xx:xx...."                    ,swacl_if_parse_v6_dip               ,swacl_if_v6_dip_to_str},
+	{SWACL_IF_filter_V6_DIP_PRE_IDX   ,"v6dip_prefix"           ,SWACL_IF_filter_V6_DIP_PRE,1,"v6dip_prefix 8,step 8"          ,swacl_if_parse_v6_dip_prefix        ,swacl_if_v6_dip_prefix_to_str},
+	{SWACL_IF_filter_V6_SIP_IDX       ,"v6sip"                  ,SWACL_IF_filter_V6_SIP,1,"v6sip xx:xx...."                    ,swacl_if_parse_v6_sip               ,swacl_if_v6_sip_to_str},
+	{SWACL_IF_filter_V6_SIP_PRE_IDX   ,"v6sip_prefix"           ,SWACL_IF_filter_V6_SIP_PRE,1,"v6sip_prefix 8,step 8"          ,swacl_if_parse_v6_sip_prefix        ,swacl_if_v6_sip_prefix_to_str},
+	{SWACL_IF_filter_DPORT_IDX        ,"dport_start"            ,SWACL_IF_filter_DPORT,1,"dport_start 1024"                    ,swacl_if_parse_dport                ,swacl_if_dport_to_str},
+	{SWACL_IF_filter_DPORT_END_IDX    ,"dport_end"              ,SWACL_IF_filter_DPORT_END,1,"dport_end 1026"                  ,swacl_if_parse_dport_end            ,swacl_if_dport_end_to_str},
+	{SWACL_IF_filter_SPORT_IDX        ,"sport_start"            ,SWACL_IF_filter_SPORT,1,"sport_start 1024"                    ,swacl_if_parse_sport                ,swacl_if_sport_to_str},
+	{SWACL_IF_filter_SPORT_END_IDX    ,"sport_end"              ,SWACL_IF_filter_SPORT_END,1,"sport_end 1026"                  ,swacl_if_parse_sport_end            ,swacl_if_sport_end_to_str},
+	{SWACL_IF_filter_VLAN_IDX         ,"vlanid"                 ,SWACL_IF_filter_VLAN,1,"vlanid 4091"                          ,swacl_if_parse_filter_vlan          ,swacl_if_vlan_to_str},
+	{SWACL_IF_filter_VLAN_PRI_IDX     ,"pbit"                   ,SWACL_IF_filter_VLAN_PRI,1,"pbit 7"                           ,swacl_if_parse_filter_vlan_pbit     ,swacl_if_vlan_pbit_to_str},
+	
 } ;
 
+struct swacl_rule_name_map_id g_swacl_act_rule_mapping[] = {
+	{SWACL_IF_ACTION_RULE_ADD_IDX     ,"rule_add"               ,SWACL_IF_ACTION_RULE_ADD,1,"rule add cmd"                     ,NULL,NULL},
+	{SWACL_IF_ACTION_RULE_DEL_IDX     ,"rule_del"               ,SWACL_IF_ACTION_RULE_DEL,1,"rule delete cmd"                  ,NULL,NULL},
+	{SWACL_IF_ACTION_RULE_CLEAR_IDX   ,"rule_clear"             ,SWACL_IF_ACTION_RULE_CLEAR,0,"rule clear cmd"                 ,NULL,NULL},
+	{SWACL_IF_ACTION_RULE_COMMIT_IDX  ,"rule_commit"            ,SWACL_IF_ACTION_RULE_COMMIT,0,"rule commit cmd"               ,NULL,NULL},
+	{SWACL_IF_ACTION_RULE_PRIORITY_IDX,"rule_pri"               ,SWACL_IF_ACTION_RULE_PRIORITY,1,"rule ptiority (0 is highest)",swacl_if_parse_rule_priority       ,swacl_if_rule_priority_to_str},
+	{SWACL_IF_ACTION_PERMIN_IDX       ,"act_permit"             ,SWACL_IF_ACTION_PERMIN,1,"permit rule action"                 ,NULL,NULL},
+	{SWACL_IF_ACTION_DROP_IDX         ,"act_drop"               ,SWACL_IF_ACTION_DROP,1,"drop rule action"                     ,NULL,NULL},
+	{SWACL_IF_ACTION_REDIRECT_IDX     ,"act_redirect"           ,SWACL_IF_ACTION_REDIRECT,0,"drop rule action"                 ,NULL,NULL},
+	{SWACL_IF_ACTION_VLANTAG_CHG_IDX  ,"vlanid_mark"            ,SWACL_IF_ACTION_VLANTAG_CHG,1,"change or vlanid"              ,swacl_if_parse_act_vlan             ,swacl_if_act_vlan_to_str},
+	{SWACL_IF_ACTION_PBIT_CHG_IDX     ,"pbit_mark"              ,SWACL_IF_ACTION_PBIT_CHG,1,"chnage or add pbit"               ,swacl_if_parse_act_pbit             ,swacl_if_act_pbit_to_str},
+	{SWACL_IF_ACTION_RULE_DEL_ALL_IDX ,"rule_del_all"           ,SWACL_IF_ACTION_RULE_DEL_ALL,1,"rule delete all"              ,NULL,NULL},
+
+};
 
 struct swacl_if_priv g_swacl_priv;
 //struct swacl_if_rule_entry g_swacl_rule_entry;
 extern int (*swacl_net_recv) (struct sk_buff ** pskb);
 
+static int 
+swacl_if_get_filter_map_idx(unsigned int umap_idx)
+{
+	int i;	
+
+	for( i = 0;i < ARRAY_SIZE(g_swacl_rule_mapping);i++){
+		if(umap_idx == g_swacl_rule_mapping[i].field_flags)
+			return g_swacl_rule_mapping[i].idx;
+
+	}
+	return -1;
+}
+static int 
+swacl_if_get_act_map_idx(unsigned int umap_idx)
+{
+	int i;	
+
+	for( i = 0;i < ARRAY_SIZE(g_swacl_act_rule_mapping);i++){
+		if(umap_idx == g_swacl_act_rule_mapping[i].field_flags)
+			return g_swacl_act_rule_mapping[i].idx;
+
+	}
+	return -1;
+}
 
 static void 	
 swacl_if_reset_global_rule_entry(struct swacl_if_rule_entry * rule_entry)
@@ -305,7 +335,20 @@ add_entry_done:
 
 
 }
-
+static int swacl_if_del_rule_entry_all(void)
+{
+	struct swacl_if_rule_entry *rule_entry_pos,*rule_entry_nxt;
+	
+	mutex_lock(&g_swacl_priv.swacl_mutex);
+	list_for_each_entry_safe(rule_entry_pos,rule_entry_nxt,&g_swacl_priv.swacl_list,swacl_entry){
+		
+		list_del(&rule_entry_pos->swacl_entry);
+		synchronize_rcu();
+		kfree(rule_entry_pos);
+	}
+	mutex_unlock(&g_swacl_priv.swacl_mutex);
+	return 0;
+}
 static int 
 swacl_if_del_rule_entry(struct swacl_if_rule_entry * rule_entry)
 {
@@ -1163,18 +1206,39 @@ swacl_if_cmd_process(char *command)
 	}
 	for ( i = 0 ; i < argc ; i++)
 	{
-		for( j = 0;j < ARRAY_SIZE(g_swacl_rule_mapping);j++){
-			if(strcmp(argv[i], g_swacl_rule_mapping[j].swacl_field_name) == 0){
+		for( j = 0;j < ARRAY_SIZE(g_swacl_act_rule_mapping);j++){
+			if(strcmp(argv[i], g_swacl_act_rule_mapping[j].swacl_field_name) == 0){
 
-				switch (g_swacl_rule_mapping[j].field_flags){
+				switch (g_swacl_act_rule_mapping[j].field_flags){
 
 					case SWACL_IF_ACTION_RULE_ADD:
 					case SWACL_IF_ACTION_RULE_DEL:
 					case SWACL_IF_ACTION_RULE_CLEAR:
 						swacl_if_reset_global_rule_entry(swacl_rule_entry_p);
-						swacl_rule_entry_p->action_flags|=g_swacl_rule_mapping[j].field_flags;
+						swacl_rule_entry_p->action_flags|=g_swacl_act_rule_mapping[j].field_flags;
 					
+						break;	
+					case SWACL_IF_ACTION_RULE_PRIORITY:
+					case SWACL_IF_ACTION_VLANTAG_CHG:
+					case SWACL_IF_ACTION_PBIT_CHG:
+						if(g_swacl_act_rule_mapping[j].parse_filter_func ==NULL)
+							continue;
+						if( i+1 >= argc ){
+							dbprintk("%s: error no parameter value \n", g_swacl_act_rule_mapping[j].swacl_field_name);	
+							goto err_return;
+						}
+						if ( (g_swacl_act_rule_mapping[j].parse_filter_func(argv[i+1],swacl_rule_entry_p) < 0)){
+							dbprintk("%s: parse err (%s)\n", g_swacl_act_rule_mapping[j].swacl_field_name
+									,argv[i+1]);
+							goto err_return;
+						}
+						swacl_rule_entry_p->action_flags|=g_swacl_act_rule_mapping[j].field_flags;
 						break;
+					case SWACL_IF_ACTION_RULE_DEL_ALL:
+						swacl_if_del_rule_entry_all();
+						kfree(swacl_rule_entry_p);
+						return 0;
+						
 #if 0						
 					case SWACL_IF_ACTION_RULE_COMMIT:
 						if(argc != 1){
@@ -1204,7 +1268,7 @@ swacl_if_cmd_process(char *command)
 		for( j = 0;j < ARRAY_SIZE(g_swacl_rule_mapping);j++){
 			if(strcmp(argv[i], g_swacl_rule_mapping[j].swacl_field_name) == 0){
 
-				if(!(g_swacl_rule_mapping[j].field_flags & SWACL_IF_FILTER_ALL_FLAGE)){
+				if(!(g_swacl_rule_mapping[j].field_flags & SWACL_IF_FILTER_ALL_FLAGE) ){
 					continue;
 				}
 				if(g_swacl_rule_mapping[j].parse_filter_func ==NULL)
@@ -1237,9 +1301,13 @@ err_return:
 	 
 	return 0;
 }
-
 static ssize_t
-swacl_if_proc_write(struct file *file, const char *buffer, size_t count, loff_t * data)
+swacl_if_proc_entry_write(struct file *file, const char *buffer, size_t count, loff_t * data)
+{
+	return count;
+}
+static ssize_t
+swacl_if_proc_cmd_write(struct file *file, const char *buffer, size_t count, loff_t * data)
 {
 	static char cmd[1024];
 	if (count > 0 && count < 1024) {
@@ -1252,33 +1320,178 @@ swacl_if_proc_write(struct file *file, const char *buffer, size_t count, loff_t 
 }
 
 static int
-swacl_if_proc_read(struct seq_file *seq, void *v)
+swacl_if_proc_cmd_read(struct seq_file *seq, void *v)
 {
+	int i;
 	
+		// omci tx
+	seq_printf(seq, "swacl cmd usage\n");
+		
+	for( i = 0;i< ARRAY_SIZE(g_swacl_act_rule_mapping);i++){
+		if(!g_swacl_act_rule_mapping[i].is_support)
+			continue;		
+		
+		seq_printf(seq, "action:%s --> (%s)\n",g_swacl_act_rule_mapping[i].swacl_field_name,g_swacl_act_rule_mapping[i].help_str);
+
+		
+	}		
+	for( i = 0;i< ARRAY_SIZE(g_swacl_rule_mapping);i++){
+		if(!g_swacl_rule_mapping[i].is_support)
+			continue;
+
+		if((g_swacl_rule_mapping[i].field_flags & SWACL_IF_FILTER_ALL_FLAGE)){
+			seq_printf(seq, "filter:%s --> (%s)\n",g_swacl_rule_mapping[i].swacl_field_name,g_swacl_rule_mapping[i].help_str);
+
+		}
+		
+	}
+	seq_printf(seq, "\n");
+
 	return 0;
+
 }
 
 static int
-swacl_if_proc_open(struct inode *inode, struct file *file)
+swacl_if_proc_entry_read(struct seq_file *seq, void *v)
 {
-	return single_open(file, swacl_if_proc_read, NULL);
+	int i,pos=0,idx;
+	struct swacl_if_rule_entry * rule_entry_pos;
+	char str_parse[128];
+	
+	rcu_read_lock();
+	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){		
+
+		seq_printf(seq, "swacl rule entry (%d)\n",pos);	
+		
+		for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
+			if((rule_entry_pos->filter_flags & (1<<i))){
+				if((idx = swacl_if_get_filter_map_idx((1<<i)))>=0){
+					if(idx >= ARRAY_SIZE(g_swacl_rule_mapping)){
+						dbprintk("filter map idx  err (%d)\n",idx );
+						continue;
+					}
+					memset(str_parse,0x0,128);
+					if(g_swacl_rule_mapping[idx].to_str_func!=NULL 
+						&& g_swacl_rule_mapping[idx].to_str_func(str_parse,rule_entry_pos) == 0){
+						seq_printf(seq, "%s:%s\n",g_swacl_rule_mapping[idx].swacl_field_name,str_parse);	
+					}
+				}	
+
+
+			}
+			
+			
+		}
+
+		for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
+			if((rule_entry_pos->action_flags & (1<<i))){
+				if((idx = swacl_if_get_act_map_idx((1<<i)))>=0){
+					if(idx >= ARRAY_SIZE(g_swacl_act_rule_mapping)){
+						dbprintk("act map idx  err (%d)\n",idx );
+						continue;
+					}
+					memset(str_parse,0x0,128);
+					if(g_swacl_act_rule_mapping[idx].to_str_func==NULL){
+						seq_printf(seq, "action:%s\n",g_swacl_act_rule_mapping[idx].swacl_field_name);
+
+					}else{
+						if(g_swacl_act_rule_mapping[idx].to_str_func(str_parse,rule_entry_pos) == 0){
+							seq_printf(seq, "%s:%s\n",g_swacl_act_rule_mapping[idx].swacl_field_name,str_parse);	
+						}
+					}
+				}	
+
+
+			}
+			
+			
+		}
+		pos++;
+	}
+	rcu_read_unlock();
+	return 0;
+
+}
+
+static int
+swacl_if_proc_cmd_open(struct inode *inode, struct file *file)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
+	return single_open(file, swacl_if_proc_cmd_read, PDE(inode)->data);
+#else
+	return single_open(file, swacl_if_proc_cmd_read, PDE_DATA(inode));
+#endif
+
+}
+
+static int
+swacl_if_proc_entry_open(struct inode *inode, struct file *file)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
+	return single_open(file, swacl_if_proc_entry_read, PDE(inode)->data);
+#else
+	return single_open(file, swacl_if_proc_entry_read, PDE_DATA(inode));
+#endif
+
 }
 
 static struct file_operations
- swacl_proc_fop = {
-	.open = swacl_if_proc_open,
-	.write = swacl_if_proc_write,
+ swacl_proc_cmd_fop = {
+	.open = swacl_if_proc_cmd_open,
+	.write = swacl_if_proc_cmd_write,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+	
+static struct file_operations
+ swacl_proc_entry_fop = {
+	.open = swacl_if_proc_entry_open,
+	.write = swacl_if_proc_entry_write,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
 };
 
+// proc swacl init & cleanup //////////////////////////////////////////////////////////////////////////
+
+struct proc_name_fop_t {
+	char *name;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
+	struct proc_ops *fop;
+#else
+	struct file_operations *fop;
+#endif
+	void *private_data;
+};
+static struct proc_name_fop_t proc_swacl_list[] = {
+	{ "cmd", &swacl_proc_cmd_fop, NULL },
+	{ "entry", &swacl_proc_entry_fop, NULL },	
+};
+
 int
 swacl_if_proc_init(void)
 {
-	g_swacl_priv.swacl_pde = proc_create(SWACL_PROC_NAME_ROOT, S_IWUSR | S_IRUGO, NULL, &swacl_proc_fop);
+	int i,j;
+	g_swacl_priv.swacl_pde = proc_mkdir(SWACL_PROC_NAME_ROOT, NULL);
+
 	if (!g_swacl_priv.swacl_pde)
 		return -ENOMEM;
+	for (i = 0; i < ARRAY_SIZE(proc_swacl_list); i++) {
+		 
+		if(proc_create_data(proc_swacl_list[i].name, S_IWUSR | S_IRUGO,
+				g_swacl_priv.swacl_pde,
+				proc_swacl_list[i].fop,
+				proc_swacl_list[i].private_data) == NULL) {
+				
+			for (j = i-1; j>=0; j--)
+				remove_proc_entry(proc_swacl_list[j].name, g_swacl_priv.swacl_pde);
+			remove_proc_entry(SWACL_PROC_NAME_ROOT, NULL);
+			return -ENOMEM;
+
+		}
+		 
+	}
 
 	return 0;
 }
@@ -1286,6 +1499,12 @@ swacl_if_proc_init(void)
 void
 swacl_if_proc_cleanup(void)
 {
+	int i;
+	for (i = 0; i < ARRAY_SIZE(proc_swacl_list); i++) {			 
+			
+		remove_proc_entry(proc_swacl_list[i].name, g_swacl_priv.swacl_pde);			
+			 
+	}
 	remove_proc_entry(SWACL_PROC_NAME_ROOT, NULL);
 }
 
@@ -1294,6 +1513,7 @@ swacl_if_cleanup(void)
 {
 
 	RCU_INIT_POINTER(swacl_net_recv, NULL);
+	swacl_if_del_rule_entry_all();
 	swacl_if_proc_cleanup();
 	mutex_destroy(&g_swacl_priv.swacl_mutex);	
 	printk("unload %s module\n", SWACL_IF_NAME);

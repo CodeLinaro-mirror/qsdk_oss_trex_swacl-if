@@ -117,6 +117,13 @@ swacl_util_string_is_digit(char *str)
 }
 
 int
+swacl_if_OUI_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%2x:%2x:%2x",rule_entry->oui[0],rule_entry->oui[1],rule_entry->oui[2]);
+	return 0;
+}
+
+int
 swacl_if_parse_OUI(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	char s1[2]={':','\0'};
@@ -149,6 +156,12 @@ swacl_if_parse_OUI(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	return SWACL_IF_SUCCESS;
 
 }
+int
+swacl_if_ethertype_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"0x%4x",rule_entry->ethertype);
+	return 0;
+}
 
 int
 swacl_if_parse_ethertype(char * param_str,struct swacl_if_rule_entry * rule_entry)
@@ -172,6 +185,14 @@ swacl_if_parse_ethertype(char * param_str,struct swacl_if_rule_entry * rule_entr
 	return SWACL_IF_SUCCESS;
 }
 
+int 
+swacl_if_dmac_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%2x:%2x:%2x:%2x:%2x:%2x",rule_entry->dmac[0],rule_entry->dmac[1],rule_entry->dmac[2]
+		,rule_entry->dmac[3],rule_entry->dmac[4],rule_entry->dmac[5]);
+	return 0;
+
+}
 int 
 swacl_if_parse_dmac(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
@@ -207,6 +228,13 @@ swacl_if_parse_dmac(char * param_str,struct swacl_if_rule_entry * rule_entry)
 }
 
 int 
+swacl_if_dmac_prefix_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%d",rule_entry->dmac_prefix);
+	return 0;
+}
+
+int 
 swacl_if_parse_dmac_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
@@ -218,10 +246,18 @@ swacl_if_parse_dmac_prefix(char * param_str,struct swacl_if_rule_entry * rule_en
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
-	rule_entry->ethertype = (unsigned short)value;	
+	rule_entry->dmac_prefix = (unsigned short)value;	
 	rule_entry->filter_flags |= SWACL_IF_filter_DMAC_PRE;
 
 	return SWACL_IF_SUCCESS;
+}
+
+int 
+swacl_if_smac_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%2x:%2x:%2x:%2x:%2x:%2x",rule_entry->smac[0],rule_entry->smac[1],rule_entry->smac[2]
+		,rule_entry->smac[3],rule_entry->smac[4],rule_entry->smac[5]);
+	return 0;
 }
 
 int 
@@ -259,6 +295,13 @@ swacl_if_parse_smac(char * param_str,struct swacl_if_rule_entry * rule_entry)
 }
 
 int 
+swacl_if_smac_prefix_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%d",rule_entry->dmac_prefix);
+	return 0;
+}
+
+int 
 swacl_if_parse_smac_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
@@ -275,6 +318,13 @@ swacl_if_parse_smac_prefix(char * param_str,struct swacl_if_rule_entry * rule_en
 
 	return SWACL_IF_SUCCESS;
 }
+int
+swacl_if_ifname_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%s",rule_entry->bind_ifname);
+	return 0;
+}
+
 int
 swacl_if_parse_ifname(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
@@ -303,6 +353,13 @@ swacl_if_parse_ifname(char * param_str,struct swacl_if_rule_entry * rule_entry)
 
 }
 int
+swacl_if_v4proto_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%d",rule_entry->v4_protocol);
+	return 0;	
+}
+
+int
 swacl_if_parse_v4proto(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
@@ -327,6 +384,13 @@ swacl_if_parse_v4proto(char * param_str,struct swacl_if_rule_entry * rule_entry)
 }
 
 int
+swacl_if_v6_nxt_header_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%d",rule_entry->v6_next_header);
+	return 0;	
+}
+
+int
 swacl_if_parse_v6_nxt_header(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	
@@ -348,6 +412,14 @@ swacl_if_parse_v6_nxt_header(char * param_str,struct swacl_if_rule_entry * rule_
 	rule_entry->filter_flags |= SWACL_IF_filter_V6_NXT_HEAD;
 
 	return SWACL_IF_SUCCESS;
+}
+
+int 
+swacl_if_dip_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u.%u.%u.%u",(rule_entry->dip&0xff000000)>>24,(rule_entry->dip&0x00ff0000)>>16
+		,(rule_entry->dip&0x0000ff00)>>8,(rule_entry->dip&0x000000ff));
+	return 0;	
 }
 
 int 
@@ -388,6 +460,12 @@ swacl_if_parse_dip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	return SWACL_IF_SUCCESS;
 
 }
+int 
+swacl_if_dip_prefix_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%d",rule_entry->dip_prefix);
+	return 0;
+}
 
 int 
 swacl_if_parse_dip_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
@@ -401,12 +479,25 @@ swacl_if_parse_dip_prefix(char * param_str,struct swacl_if_rule_entry * rule_ent
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+
+	if(value>32){
+		dbprintk("dip prefix: range error\n");		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->dip_prefix = (unsigned short)value;	
 	rule_entry->filter_flags |= SWACL_IF_filter_DIP_PRE;
 
 	return SWACL_IF_SUCCESS;
 
 }
+int 
+swacl_if_sip_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u.%u.%u.%u",(rule_entry->sip&0xff000000)>>24,(rule_entry->sip&0x00ff0000)>>16
+		,(rule_entry->sip&0x0000ff00)>>8,(rule_entry->sip&0x000000ff));
+	return 0;	
+}
+
 int 
 swacl_if_parse_sip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
@@ -445,6 +536,12 @@ swacl_if_parse_sip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	return SWACL_IF_SUCCESS;
 
 }
+int 
+swacl_if_sip_prefix_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%d",rule_entry->sip_prefix);
+	return 0;
+}
 
 int 
 swacl_if_parse_sip_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
@@ -464,6 +561,17 @@ swacl_if_parse_sip_prefix(char * param_str,struct swacl_if_rule_entry * rule_ent
 	return SWACL_IF_SUCCESS;	
 
 }
+int
+swacl_if_v6_dip_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str, "%x:%x:%x:%x:%x:%x:%x:%x", 
+		ntohs(rule_entry->v6dip.s6_addr16[0]), ntohs(rule_entry->v6dip.s6_addr16[1]),
+		ntohs(rule_entry->v6dip.s6_addr16[2]), ntohs(rule_entry->v6dip.s6_addr16[3]),
+		ntohs(rule_entry->v6dip.s6_addr16[4]), ntohs(rule_entry->v6dip.s6_addr16[5]),
+		ntohs(rule_entry->v6dip.s6_addr16[6]), ntohs(rule_entry->v6dip.s6_addr16[7]));
+	return 0;
+}
+
 int
 swacl_if_parse_v6_dip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
@@ -493,6 +601,13 @@ swacl_if_parse_v6_dip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	return SWACL_IF_SUCCESS;	
 }
 int
+swacl_if_v6_dip_prefix_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->v6dip_prefix);
+	return 0;
+}
+
+int
 swacl_if_parse_v6_dip_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
@@ -504,10 +619,26 @@ swacl_if_parse_v6_dip_prefix(char * param_str,struct swacl_if_rule_entry * rule_
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value>128){
+		dbprintk("ip6 prefix: range error\n");		
+		return SWACL_IF_ERROR;
+	}
+		
 	rule_entry->v6dip_prefix = (unsigned short)value; 
 	rule_entry->filter_flags |= SWACL_IF_filter_V6_DIP_PRE;
 
 	return SWACL_IF_SUCCESS;	
+}
+
+int
+swacl_if_v6_sip_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str, "%x:%x:%x:%x:%x:%x:%x:%x", 
+		ntohs(rule_entry->v6sip.s6_addr16[0]), ntohs(rule_entry->v6sip.s6_addr16[1]),
+		ntohs(rule_entry->v6sip.s6_addr16[2]), ntohs(rule_entry->v6sip.s6_addr16[3]),
+		ntohs(rule_entry->v6sip.s6_addr16[4]), ntohs(rule_entry->v6sip.s6_addr16[5]),
+		ntohs(rule_entry->v6sip.s6_addr16[6]), ntohs(rule_entry->v6sip.s6_addr16[7]));
+	return 0;
 }
 
 int
@@ -539,6 +670,13 @@ swacl_if_parse_v6_sip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	return SWACL_IF_SUCCESS;	
 }
 int
+swacl_if_v6_sip_prefix_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->v6sip_prefix);
+	return 0;
+}
+
+int
 swacl_if_parse_v6_sip_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
@@ -550,10 +688,20 @@ swacl_if_parse_v6_sip_prefix(char * param_str,struct swacl_if_rule_entry * rule_
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value>128){
+		dbprintk("ip6 prefix: range error\n");		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->v6sip_prefix = (unsigned short)value; 
 	rule_entry->filter_flags |= SWACL_IF_filter_V6_SIP_PRE;
 
 	return SWACL_IF_SUCCESS;	
+}
+int
+swacl_if_dport_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->dport_start);
+	return 0;	
 }
 
 int
@@ -574,6 +722,12 @@ swacl_if_parse_dport(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	return SWACL_IF_SUCCESS;	
 
 }
+int
+swacl_if_dport_end_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->dport_end);
+	return 0;	
+}
 
 int
 swacl_if_parse_dport_end(char * param_str,struct swacl_if_rule_entry * rule_entry)
@@ -592,6 +746,12 @@ swacl_if_parse_dport_end(char * param_str,struct swacl_if_rule_entry * rule_entr
 
 	return SWACL_IF_SUCCESS;	
 
+}
+int
+swacl_if_sport_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->sport_start);
+	return 0;	
 }
 
 int
@@ -612,6 +772,12 @@ swacl_if_parse_sport(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	return SWACL_IF_SUCCESS;	
 
 }
+int
+swacl_if_sport_end_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->sport_end);
+	return 0;	
+}
 
 int
 swacl_if_parse_sport_end(char * param_str,struct swacl_if_rule_entry * rule_entry)
@@ -631,6 +797,12 @@ swacl_if_parse_sport_end(char * param_str,struct swacl_if_rule_entry * rule_entr
 	return SWACL_IF_SUCCESS;	
 
 }
+int
+swacl_if_vlan_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->vlantag_id);
+	return 0;	
+}
 
 int 
 swacl_if_parse_filter_vlan(char * param_str,struct swacl_if_rule_entry * rule_entry)
@@ -648,6 +820,12 @@ swacl_if_parse_filter_vlan(char * param_str,struct swacl_if_rule_entry * rule_en
 	rule_entry->filter_flags |= SWACL_IF_filter_VLAN;
 
 	return SWACL_IF_SUCCESS;	
+}
+int
+swacl_if_vlan_pbit_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->vlan_tag_pbit);
+	return 0;	
 }
 
 int 
@@ -668,6 +846,13 @@ swacl_if_parse_filter_vlan_pbit(char * param_str,struct swacl_if_rule_entry * ru
 	return SWACL_IF_SUCCESS;	
 }
 int
+swacl_if_act_vlan_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->vlan_mark);
+	return 0;	
+}
+
+int
 swacl_if_parse_act_vlan(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
@@ -686,6 +871,13 @@ swacl_if_parse_act_vlan(char * param_str,struct swacl_if_rule_entry * rule_entry
 
 }
 int
+swacl_if_act_pbit_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->pbit_mark);
+	return 0;	
+}
+
+int
 swacl_if_parse_act_pbit(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
@@ -703,6 +895,13 @@ swacl_if_parse_act_pbit(char * param_str,struct swacl_if_rule_entry * rule_entry
 	return SWACL_IF_SUCCESS;		
 
 }
+int
+swacl_if_rule_priority_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	sprintf(param_str,"%u",rule_entry->priority);
+	return 0;	
+}
+
 int
 swacl_if_parse_rule_priority(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
