@@ -1435,6 +1435,16 @@ swacl_if_proc_entry_open(struct inode *inode, struct file *file)
 
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
+static struct proc_ops
+ swacl_proc_cmd_fop = {
+	.proc_open = swacl_if_proc_cmd_open,
+	.proc_write = swacl_if_proc_cmd_write,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
 static struct file_operations
  swacl_proc_cmd_fop = {
 	.open = swacl_if_proc_cmd_open,
@@ -1443,7 +1453,18 @@ static struct file_operations
 	.llseek = seq_lseek,
 	.release = single_release,
 };
-	
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
+static struct proc_ops
+ swacl_proc_entry_fop = {
+	.proc_open = swacl_if_proc_entry_open,
+	.proc_write = swacl_if_proc_entry_write,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
 static struct file_operations
  swacl_proc_entry_fop = {
 	.open = swacl_if_proc_entry_open,
@@ -1452,6 +1473,7 @@ static struct file_operations
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
 
 // proc swacl init & cleanup //////////////////////////////////////////////////////////////////////////
 
