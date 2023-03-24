@@ -46,7 +46,7 @@
 #define SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE (SWACL_IF_ACTION_PERMIN|SWACL_IF_ACTION_DROP)
 
 #define SWACL_IF_FILTER_ALL_FLAGE	(SWACL_IF_filter_OUI|SWACL_IF_filter_ETHERTYPE|SWACL_IF_filter_DMAC|SWACL_IF_filter_SMAC \
-	                                 |SWACL_IF_filter_V4_PROTO|SWACL_IF_filter_V6_NXT_HEAD|SWACL_IF_filter_DIP|SWACL_IF_filter_DIP \
+	                                 |SWACL_IF_filter_V4_PROTO|SWACL_IF_filter_V6_NXT_HEAD|SWACL_IF_filter_SIP|SWACL_IF_filter_DIP \
 	                                 |SWACL_IF_filter_V6_DIP|SWACL_IF_filter_V6_SIP|SWACL_IF_filter_DPORT|SWACL_IF_filter_SPORT \
 	                                 |SWACL_IF_filter_VLAN|SWACL_IF_filter_VLAN_PRI|SWACL_IF_filter_IFNAME|SWACL_IF_filter_DIP_PRE \
 	                                 |SWACL_IF_filter_SIP_PRE|SWACL_IF_filter_V6_DIP_PRE|SWACL_IF_filter_V6_SIP_PRE|SWACL_IF_filter_DPORT_END \
@@ -142,147 +142,16 @@ static int
 swacl_if_add_rule_entry(struct swacl_if_rule_entry * rule_entry)
 {
 	struct swacl_if_rule_entry * rule_entry_pos,* rule_entry_nxt;
-	int i;
-	unsigned int match_filter=0;
 
 	rcu_read_lock();
-	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){		
-		
-		match_filter = 0;
-		if((rule_entry_pos->filter_flags & rule_entry->filter_flags)==rule_entry->filter_flags){
-			for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
-				if((rule_entry_pos->filter_flags & (1<<i))){
-					switch((1<<i)) {
-						case SWACL_IF_filter_OUI:
-							if(memcmp(rule_entry_pos->oui,rule_entry->oui,OUI_LEN)==0){
-								match_filter |= SWACL_IF_filter_OUI;	
-							}
-							break;
-						case SWACL_IF_filter_ETHERTYPE:							
-							if(rule_entry_pos->ethertype == rule_entry->ethertype){
-								match_filter |= SWACL_IF_filter_ETHERTYPE;	
-							}
-							break;
-						case SWACL_IF_filter_DMAC:							
-							if(memcmp(rule_entry_pos->dmac,rule_entry->dmac,VLAN_ETH_ALEN)==0){
-								match_filter |= SWACL_IF_filter_DMAC;	
-							}
-							break;
-						case SWACL_IF_filter_DMAC_PRE:							
-							if(rule_entry_pos->dmac_prefix == rule_entry->dmac_prefix){
-								match_filter |= SWACL_IF_filter_DMAC_PRE;	
-							}
-							break;	
-						case SWACL_IF_filter_SMAC:							
-							if(memcmp(rule_entry_pos->smac,rule_entry->smac,VLAN_ETH_ALEN)==0){
-								match_filter |= SWACL_IF_filter_SMAC;	
-							}
-							break;
-						case SWACL_IF_filter_SMAC_PRE:							
-							if(rule_entry_pos->smac_prefix == rule_entry->smac_prefix){
-								match_filter |= SWACL_IF_filter_SMAC_PRE;	
-							}
-							break;
-						case SWACL_IF_filter_V4_PROTO:							
-							if(rule_entry_pos->v4_protocol == rule_entry->v4_protocol){
-								match_filter |= SWACL_IF_filter_V4_PROTO;	
-							}
-							break;	
-						case SWACL_IF_filter_V6_NXT_HEAD:							
-							if(rule_entry_pos->v6_next_header == rule_entry->v6_next_header){
-								match_filter |= SWACL_IF_filter_V6_NXT_HEAD;	
-							}
-							break;
-						case SWACL_IF_filter_DIP:							
-							if(rule_entry_pos->dip == rule_entry->dip){
-								match_filter |= SWACL_IF_filter_DIP;	
-							}
-							break;	
-						case SWACL_IF_filter_DIP_PRE:							
-							if(rule_entry_pos->dip_prefix == rule_entry->dip_prefix){
-								match_filter |= SWACL_IF_filter_DIP_PRE;	
-							}
-							break;	
-						case SWACL_IF_filter_SIP:							
-							if(rule_entry_pos->dip == rule_entry->dip){
-								match_filter |= SWACL_IF_filter_SIP;	
-							}
-							break;	
-						case SWACL_IF_filter_SIP_PRE:							
-							if(rule_entry_pos->dip_prefix == rule_entry->dip_prefix){
-								match_filter |= SWACL_IF_filter_SIP_PRE;	
-							}
-							break;
-						case SWACL_IF_filter_V6_DIP:
-							if(memcpy(&rule_entry_pos->v6dip,&rule_entry->v6dip,sizeof(struct in6_addr))==0){
-								match_filter |= SWACL_IF_filter_V6_DIP;
-							}
-							break;
-						case SWACL_IF_filter_V6_DIP_PRE:
-							if(rule_entry_pos->v6dip_prefix == rule_entry->v6dip_prefix){
-								match_filter |= SWACL_IF_filter_V6_DIP_PRE;
-							}
-							break;	
-						case SWACL_IF_filter_V6_SIP:
-							if(memcpy(&rule_entry_pos->v6sip,&rule_entry->v6sip,sizeof(struct in6_addr))==0){
-								match_filter |= SWACL_IF_filter_V6_SIP;
-							}
-							break;
-						case SWACL_IF_filter_V6_SIP_PRE:
-							if(rule_entry_pos->v6sip_prefix == rule_entry->v6sip_prefix){
-								match_filter |= SWACL_IF_filter_V6_SIP_PRE;
-							}
-							break;
-						case SWACL_IF_filter_DPORT:
-							if(rule_entry_pos->dport_start == rule_entry->dport_start){
-								match_filter |= SWACL_IF_filter_DPORT;
-							}
-							break;
-						case SWACL_IF_filter_DPORT_END:
-							if(rule_entry_pos->dport_end == rule_entry->dport_end){
-								match_filter |= SWACL_IF_filter_DPORT_END;
-							}
-							break;
-						case SWACL_IF_filter_SPORT:
-							if(rule_entry_pos->sport_start == rule_entry->sport_start){
-								match_filter |= SWACL_IF_filter_SPORT;
-							}
-							break;
-						case SWACL_IF_filter_SPORT_END:
-							if(rule_entry_pos->sport_end == rule_entry->sport_end){
-								match_filter |= SWACL_IF_filter_SPORT_END;
-							}
-							break;	
-						case SWACL_IF_filter_VLAN:
-							if(rule_entry_pos->vlantag_id == rule_entry->vlantag_id){
-								match_filter |= SWACL_IF_filter_VLAN;
-							}
-							break;	
-						case SWACL_IF_filter_VLAN_PRI:
-							if(rule_entry_pos->vlan_tag_pbit == rule_entry->vlan_tag_pbit){
-								match_filter |= SWACL_IF_filter_VLAN_PRI;
-							}
-							break;
-						default:
-							break;
-							
-					}				
+	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){
 
-				}
-
-			}
 			
-			
-			if((rule_entry_pos->filter_flags & match_filter) == match_filter){
-				if(strcmp(rule_entry_pos->bind_ifname,rule_entry->bind_ifname)==0){
-					dbprintk("%s: rule exit (%ul)\n", rule_entry->bind_ifname,match_filter);
-					rcu_read_unlock();
-					return -1;		
-				}
-			}
-				
+		if(swacl_if_filter_cmp(rule_entry,rule_entry_pos) == SWACL_IF_MATCH_FILTER_OK ){
+			dbprintk("%s: rule exit (0x%4.4x)\n", rule_entry->bind_ifname,rule_entry->filter_flags);
+			rcu_read_unlock();
+			return -1;			
 		}
-
 	}
 	rcu_read_unlock();
 
@@ -317,12 +186,18 @@ swacl_if_add_rule_entry(struct swacl_if_rule_entry * rule_entry)
 			if(rule_entry->priority < rule_entry_pos->priority){
 				///add pre
 				__list_add_rcu(&rule_entry->swacl_entry,rule_entry_pos->swacl_entry.prev,&rule_entry_pos->swacl_entry);
-				break;
+				goto add_entry_done;
 				
 			}
+							
+
+		}
+		list_for_each_entry_reverse(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){
+			
+			
 			if(rule_entry->priority > rule_entry_pos->priority){
 				list_add_rcu(&rule_entry->swacl_entry,&rule_entry_pos->swacl_entry);
-				break;
+				goto add_entry_done;
 			    
 			}
 				
@@ -354,7 +229,7 @@ swacl_if_del_rule_entry(struct swacl_if_rule_entry * rule_entry)
 {
 
 	struct swacl_if_rule_entry * rule_entry_pos;
-	int i,bfound=0;
+	int bfound=0;
 	unsigned int match_filter=0;
 
 	rcu_read_lock();
@@ -362,130 +237,10 @@ swacl_if_del_rule_entry(struct swacl_if_rule_entry * rule_entry)
 		
 		match_filter = 0;
 		if((rule_entry_pos->filter_flags & rule_entry->filter_flags)==rule_entry->filter_flags){
-			for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
-				if((rule_entry_pos->filter_flags & (1<<i))){
-					switch((1<<i)) {
-						case SWACL_IF_filter_OUI:
-							if(memcmp(rule_entry_pos->oui,rule_entry->oui,OUI_LEN)==0){
-								match_filter |= SWACL_IF_filter_OUI;	
-							}
-							break;
-						case SWACL_IF_filter_ETHERTYPE:							
-							if(rule_entry_pos->ethertype == rule_entry->ethertype){
-								match_filter |= SWACL_IF_filter_ETHERTYPE;	
-							}
-							break;
-						case SWACL_IF_filter_DMAC:							
-							if(memcmp(rule_entry_pos->dmac,rule_entry->dmac,VLAN_ETH_ALEN)==0){
-								match_filter |= SWACL_IF_filter_DMAC;	
-							}
-							break;
-						case SWACL_IF_filter_DMAC_PRE:							
-							if(rule_entry_pos->dmac_prefix == rule_entry->dmac_prefix){
-								match_filter |= SWACL_IF_filter_DMAC_PRE;	
-							}
-							break;	
-						case SWACL_IF_filter_SMAC:							
-							if(memcmp(rule_entry_pos->smac,rule_entry->smac,VLAN_ETH_ALEN)==0){
-								match_filter |= SWACL_IF_filter_SMAC;	
-							}
-							break;
-						case SWACL_IF_filter_SMAC_PRE:							
-							if(rule_entry_pos->smac_prefix == rule_entry->smac_prefix){
-								match_filter |= SWACL_IF_filter_SMAC_PRE;	
-							}
-							break;
-						case SWACL_IF_filter_V4_PROTO:							
-							if(rule_entry_pos->v4_protocol == rule_entry->v4_protocol){
-								match_filter |= SWACL_IF_filter_V4_PROTO;	
-							}
-							break;	
-						case SWACL_IF_filter_V6_NXT_HEAD:							
-							if(rule_entry_pos->v6_next_header == rule_entry->v6_next_header){
-								match_filter |= SWACL_IF_filter_V6_NXT_HEAD;	
-							}
-							break;
-						case SWACL_IF_filter_DIP:							
-							if(rule_entry_pos->dip == rule_entry->dip){
-								match_filter |= SWACL_IF_filter_DIP;	
-							}
-							break;	
-						case SWACL_IF_filter_DIP_PRE:							
-							if(rule_entry_pos->dip_prefix == rule_entry->dip_prefix){
-								match_filter |= SWACL_IF_filter_DIP_PRE;	
-							}
-							break;	
-						case SWACL_IF_filter_SIP:							
-							if(rule_entry_pos->dip == rule_entry->dip){
-								match_filter |= SWACL_IF_filter_SIP;	
-							}
-							break;	
-						case SWACL_IF_filter_SIP_PRE:							
-							if(rule_entry_pos->dip_prefix == rule_entry->dip_prefix){
-								match_filter |= SWACL_IF_filter_SIP_PRE;	
-							}
-							break;
-						case SWACL_IF_filter_V6_DIP:
-							if(memcpy(&rule_entry_pos->v6dip,&rule_entry->v6dip,sizeof(struct in6_addr))==0){
-								match_filter |= SWACL_IF_filter_V6_DIP;
-							}
-							break;
-						case SWACL_IF_filter_V6_DIP_PRE:
-							if(rule_entry_pos->v6dip_prefix == rule_entry->v6dip_prefix){
-								match_filter |= SWACL_IF_filter_V6_DIP_PRE;
-							}
-							break;	
-						case SWACL_IF_filter_V6_SIP:
-							if(memcpy(&rule_entry_pos->v6sip,&rule_entry->v6sip,sizeof(struct in6_addr))==0){
-								match_filter |= SWACL_IF_filter_V6_SIP;
-							}
-							break;
-						case SWACL_IF_filter_V6_SIP_PRE:
-							if(rule_entry_pos->v6sip_prefix == rule_entry->v6sip_prefix){
-								match_filter |= SWACL_IF_filter_V6_SIP_PRE;
-							}
-							break;
-						case SWACL_IF_filter_DPORT:
-							if(rule_entry_pos->dport_start == rule_entry->dport_start){
-								match_filter |= SWACL_IF_filter_DPORT;
-							}
-							break;
-						case SWACL_IF_filter_DPORT_END:
-							if(rule_entry_pos->dport_end == rule_entry->dport_end){
-								match_filter |= SWACL_IF_filter_DPORT_END;
-							}
-							break;
-						case SWACL_IF_filter_SPORT:
-							if(rule_entry_pos->sport_start == rule_entry->sport_start){
-								match_filter |= SWACL_IF_filter_SPORT;
-							}
-							break;
-						case SWACL_IF_filter_SPORT_END:
-							if(rule_entry_pos->sport_end == rule_entry->sport_end){
-								match_filter |= SWACL_IF_filter_SPORT_END;
-							}
-							break;	
-						case SWACL_IF_filter_VLAN:
-							if(rule_entry_pos->vlantag_id == rule_entry->vlantag_id){
-								match_filter |= SWACL_IF_filter_VLAN;
-							}
-							break;	
-						case SWACL_IF_filter_VLAN_PRI:
-							if(rule_entry_pos->vlan_tag_pbit == rule_entry->vlan_tag_pbit){
-								match_filter |= SWACL_IF_filter_VLAN_PRI;
-							}
-							break;		
-							
-					}				
-
-				}
-
-			}
-			
-			if((rule_entry_pos->filter_flags & match_filter) == match_filter){
+			if(swacl_if_filter_cmp(rule_entry,rule_entry_pos) == SWACL_IF_MATCH_FILTER_OK ){
 				bfound = 1;
-				break;
-			}
+				break;	
+			}			
 				
 		}
 
@@ -522,7 +277,7 @@ static int swacl_if_commit_global_rule_entry(struct swacl_if_rule_entry * rule_e
 	if((rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE) == SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE)
 		return SWACL_IF_ERROR_PERMIT_CONFLICT;
 
-	if((rule_entry->action_flags & SWACL_IF_ACTION_PERMIN) &&  !(rule_entry->filter_flags&SWACL_IF_ACTION_VLANTAG_CHG))
+	if((rule_entry->action_flags & SWACL_IF_ACTION_PERMIN) &&  !(rule_entry->action_flags&SWACL_IF_ACTION_VLANTAG_CHG))
 		return SWACL_IF_ERROR_PERMIT_CONFLICT1;
 	
 	if(!(rule_entry->filter_flags & SWACL_IF_filter_IFNAME))
@@ -648,7 +403,7 @@ int
 swacl_if_handle_frame(struct sk_buff **pskb)
 {
 	struct swacl_if_rule_entry * rule_entry_pos;
-	int i,j,cmp_b=0,cmp_m=0;
+	int i,j,cmp_b=0,match_act=0,no_match=0,idx=0;
 	struct sk_buff *skb;
 	unsigned int match_filter=0,cmp_prex=0;
 	struct iphdr *iph;
@@ -662,11 +417,21 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 	
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
+
+	if(skb->dev ==NULL)
+		return RX_HANDLER_PASS;
+
+	if(strlen(skb->dev->name) ==0)
+		return RX_HANDLER_PASS;
 	
 	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){
-
+		
+		match_filter = 0;	
 		if(strcmp(skb->dev->name,rule_entry_pos->bind_ifname) == 0){
+			match_filter |= SWACL_IF_filter_IFNAME;
+			
 			for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
+				
 				if((rule_entry_pos->filter_flags & (1<<i))){
 					switch((1<<i)){
 						case SWACL_IF_filter_OUI:
@@ -685,34 +450,21 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 							break;
 						case SWACL_IF_filter_DMAC:
 							if(rule_entry_pos->filter_flags & SWACL_IF_filter_DMAC_PRE){
+								no_match = 0;
 								cmp_b = (rule_entry_pos->dmac_prefix+7)/8;
-								if(cmp_b != 1){
-									for(j=0;j<cmp_b-1;i++){
-										if(rule_entry_pos->dmac[j] != eth_hdr(skb)->h_dest[j]){	
-											i = SWACL_IF_FILTER_BIT_LEN;
-											continue;
-										}
+								for(j=0;j<cmp_b;j++){									
+									if(rule_entry_pos->dmac[j] != eth_hdr(skb)->h_dest[j]){	
+										i = SWACL_IF_FILTER_BIT_LEN;
+										no_match = 1;
+										break;
 									}
 								}
-
-								cmp_m = rule_entry_pos->dmac_prefix%8;
-								if(cmp_m == 0){
-									if(rule_entry_pos->dmac[cmp_b-1] != eth_hdr(skb)->h_dest[cmp_b-1]){
-										i = SWACL_IF_FILTER_BIT_LEN;
-										continue;
-									}
-								}else{
-									cmp_prex = SWCAL_IF_PARSE_PREFIX << (8-cmp_m);	
-									if((rule_entry_pos->dmac[cmp_b-1]&cmp_prex) != (eth_hdr(skb)->h_dest[cmp_b-1]&cmp_prex)){
-										i = SWACL_IF_FILTER_BIT_LEN;
-										continue;
-									}
-								}
-								match_filter |= SWACL_IF_filter_DMAC | SWACL_IF_filter_DMAC_PRE;
+								if(!no_match)
+									match_filter |= SWACL_IF_filter_DMAC | SWACL_IF_filter_DMAC_PRE;
 								
 							}
 							else{
-								if(memcmp(rule_entry_pos->dmac,eth_hdr(skb)->h_source,VLAN_ETH_ALEN)!=0){
+								if(memcmp(rule_entry_pos->dmac,eth_hdr(skb)->h_dest,ETH_ALEN)!=0){
 									i = SWACL_IF_FILTER_BIT_LEN;
 									continue;	
 								}
@@ -724,34 +476,21 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 							break;	
 						case SWACL_IF_filter_SMAC:							
 							if(rule_entry_pos->filter_flags & SWACL_IF_filter_SMAC_PRE){
-								cmp_b = (rule_entry_pos->smac_prefix+7)/8;
-								if(cmp_b != 1){
-									for(j=0;j<cmp_b-1;i++){
-										if(rule_entry_pos->smac[j] != eth_hdr(skb)->h_source[j]){
-											i = SWACL_IF_FILTER_BIT_LEN;
-											continue;
-										}
-									}
-								}
-
-								cmp_m = rule_entry_pos->dmac_prefix%8;
-								if(cmp_m == 0){
-									if(rule_entry_pos->smac[cmp_b-1] != eth_hdr(skb)->h_source[cmp_b-1]){	
+								no_match = 0;
+								cmp_b = (rule_entry_pos->smac_prefix+7)/8;								
+								for(j=0;j<cmp_b;j++){
+									if(rule_entry_pos->smac[j] != eth_hdr(skb)->h_source[j]){
 										i = SWACL_IF_FILTER_BIT_LEN;
-										continue;
+										no_match = 1;
+										break;
 									}
-								}else{
-									cmp_prex = SWCAL_IF_PARSE_PREFIX << (8-cmp_m);	
-									if((rule_entry_pos->smac[cmp_b-1]&cmp_prex) != (eth_hdr(skb)->h_source[cmp_b-1]&cmp_prex)){	
-										i = SWACL_IF_FILTER_BIT_LEN;
-										continue;
-									}
-								}
-								match_filter |= SWACL_IF_filter_SMAC | SWACL_IF_filter_SMAC_PRE;
+								}								
+								if(!no_match)
+									match_filter |= SWACL_IF_filter_SMAC | SWACL_IF_filter_SMAC_PRE;
 								
 							}
 							else{
-								if(memcmp(rule_entry_pos->dmac,eth_hdr(skb)->h_source,VLAN_ETH_ALEN)!=0){
+								if(memcmp(rule_entry_pos->smac,eth_hdr(skb)->h_source,ETH_ALEN)!=0){
 									i = SWACL_IF_FILTER_BIT_LEN;
 									continue;		
 								}
@@ -814,8 +553,10 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 							if (ntohs(skb->protocol)!=ETH_P_IP){
 								i = SWACL_IF_FILTER_BIT_LEN;
 								continue;	
-							}
+							}							
 							iph = (struct iphdr *)skb->data;
+							//dbprintk("filter sip,0x%x,0x%x,pre=%d\n",rule_entry_pos->sip,ntohl(iph->saddr)
+							//		,rule_entry_pos->sip_prefix);
 							if(rule_entry_pos->filter_flags & SWACL_IF_filter_SIP_PRE){
 								cmp_prex = SWCAL_IF_PARSE_4PREFIX << (32 -rule_entry_pos->sip_prefix);
 								if ((rule_entry_pos->sip & cmp_prex) != (ntohl(iph->saddr)& cmp_prex)) {
@@ -844,29 +585,17 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 							
 							if(rule_entry_pos->filter_flags & SWACL_IF_filter_V6_DIP_PRE){
 								cmp_b = (rule_entry_pos->v6dip_prefix+7)/8;
-								if(cmp_b != 1 && cmp_b < 16){
-									for(j=0;j<cmp_b-1;i++){
-										if(rule_entry_pos->v6dip.s6_addr[j] != ip6h->daddr.s6_addr[j]){
-											i = SWACL_IF_FILTER_BIT_LEN;
-											continue;
-										}
+								no_match = 0;
+								for(j=0;j<cmp_b;j++){
+									if(rule_entry_pos->v6dip.s6_addr[j] != ip6h->daddr.s6_addr[j]){
+										i = SWACL_IF_FILTER_BIT_LEN;
+										no_match = 1;
+										break;
 									}
-								}
+								}							
 
-								cmp_m = rule_entry_pos->v6dip_prefix%8;
-								if(cmp_m == 0){
-									if(rule_entry_pos->v6dip.s6_addr[cmp_b-1] != ip6h->daddr.s6_addr[cmp_b-1]){	
-										i = SWACL_IF_FILTER_BIT_LEN;
-										continue;
-									}
-								}else{
-									cmp_prex = SWCAL_IF_PARSE_PREFIX << (8-cmp_m);	
-									if((rule_entry_pos->v6dip.s6_addr[cmp_b-1]&cmp_prex) != (ip6h->daddr.s6_addr[cmp_b-1]&cmp_prex)){	
-										i = SWACL_IF_FILTER_BIT_LEN;
-										continue;
-									}
-								}
-								match_filter |= SWACL_IF_filter_V6_DIP | SWACL_IF_filter_V6_DIP_PRE;
+								if(!no_match)
+									match_filter |= SWACL_IF_filter_V6_DIP | SWACL_IF_filter_V6_DIP_PRE;
 							}else{
 								if (memcmp(&rule_entry_pos->v6dip,&ip6h->daddr,sizeof(struct in6_addr))!=0 ){
 									i = SWACL_IF_FILTER_BIT_LEN;
@@ -889,29 +618,16 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 							
 							if(rule_entry_pos->filter_flags & SWACL_IF_filter_V6_SIP_PRE){
 								cmp_b = (rule_entry_pos->v6sip_prefix+7)/8;
-								if(cmp_b != 1 && cmp_b < 16){
-									for(j=0;j<cmp_b-1;i++){
-										if(rule_entry_pos->v6sip.s6_addr[j] != ip6h->saddr.s6_addr[j]){
-											i = SWACL_IF_FILTER_BIT_LEN;
-											continue;
-										}
-									}
-								}
-
-								cmp_m = rule_entry_pos->v6dip_prefix%8;
-								if(cmp_m == 0){
-									if(rule_entry_pos->v6sip.s6_addr[cmp_b-1] != ip6h->saddr.s6_addr[cmp_b-1]){	
+								no_match = 0;
+								for(j=0;j<cmp_b;j++){
+									if(rule_entry_pos->v6sip.s6_addr[j] != ip6h->saddr.s6_addr[j]){
 										i = SWACL_IF_FILTER_BIT_LEN;
-										continue;
+										no_match = 1;
+										break;
 									}
-								}else{
-									cmp_prex = SWCAL_IF_PARSE_PREFIX << (8-cmp_m);	
-									if((rule_entry_pos->v6sip.s6_addr[cmp_b-1]&cmp_prex) != (ip6h->saddr.s6_addr[cmp_b-1]&cmp_prex)){	
-										i = SWACL_IF_FILTER_BIT_LEN;
-										continue;
-									}
-								}
-								match_filter |= SWACL_IF_filter_V6_SIP | SWACL_IF_filter_V6_SIP_PRE;
+								}								
+								if(!no_match)
+									match_filter |= SWACL_IF_filter_V6_SIP | SWACL_IF_filter_V6_SIP_PRE;
 							}else{
 								if (memcmp(&rule_entry_pos->v6sip,&ip6h->saddr,sizeof(struct in6_addr))!=0 ){
 									i = SWACL_IF_FILTER_BIT_LEN;
@@ -1095,17 +811,28 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 								continue;	
 							}
 							match_filter |= SWACL_IF_filter_VLAN_PRI;
-							break;	
+							break;
+						default:
+							break;
 
 					}
 				}
 			}
 		}
-		
+		if(g_swacl_priv.debug_rx >= SWACL_IF_DEBUG_LVL_2){
+			dbprintk("before idx[%d] match_filter 0x%x filter_flags 0x%x\n",idx,match_filter
+				,rule_entry_pos->filter_flags);
+		}	
 		if((match_filter & rule_entry_pos->filter_flags) == rule_entry_pos->filter_flags){
 			//do match action
-			if(swacl_if_match_action_rule(pskb,rule_entry_pos) == SWACL_IF_MATCH_ACT_DROP)
-			{
+			match_act = swacl_if_match_action_rule(pskb,rule_entry_pos);
+
+			if(g_swacl_priv.debug_rx >= SWACL_IF_DEBUG_LVL_1){
+				dbprintk("idx[%d]%s:match filter 0x%x-0x%x,act=%d\n",idx,skb->dev->name,match_filter
+				,rule_entry_pos->filter_flags,match_act);
+			}	
+			if(match_act == SWACL_IF_MATCH_ACT_DROP){
+				
 				atomic_long_inc(&skb->dev->rx_dropped);
 				g_swacl_priv.stats.rx_packets++;
 				g_swacl_priv.stats.rx_bytes += skb->len;
@@ -1113,17 +840,20 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 				kfree_skb(skb);
 				return RX_HANDLER_CONSUMED;
 					
-			}
-
-			if(swacl_if_match_action_rule(pskb,rule_entry_pos) == SWACL_IF_MATCH_ACT_OK){
+			}else if(match_act == SWACL_IF_MATCH_ACT_OK){
 
 				g_swacl_priv.stats.rx_packets++;
 				g_swacl_priv.stats.rx_bytes += skb->len;
 				g_swacl_priv.stats.tx_packets++;
 				g_swacl_priv.stats.tx_bytes += skb->len;
 				return RX_HANDLER_PASS;		
+			}else{
+				if(g_swacl_priv.debug_rx >= SWACL_IF_DEBUG_LVL_2){
+					dbprintk("RX MATCH ACT UNKNOW %d\n",match_act);
+				}	
 			}
 		}
+		idx++;
 	}
 	return RX_HANDLER_PASS;	
 }
@@ -1191,11 +921,12 @@ swacl_if_probe_one(char *if_name, unsigned char *macaddr)
 static int
 swacl_if_cmd_process(char *command)
 {
-	int argc,i,j,ret=0;
+	int argc,i,j,ret=0,param_len;
 	struct swacl_if_rule_entry * swacl_rule_entry_p;
-	char *argv[32];
+	char *argv[SWACL_STRING_PARAM_ARRAY_LEN];
+	static char parse_param[SWACL_STRING_PARAM_LEN];
 
-	argc = swacl_if_str2argv(command, argv, 32);
+	argc = swacl_if_str2argv(command, argv, SWACL_STRING_PARAM_ARRAY_LEN);
 	if (argc == 0)
 		return 0;
 
@@ -1204,8 +935,18 @@ swacl_if_cmd_process(char *command)
 		dbprintk("no memory\n");
 		return -ENOMEM;
 	}
+	
 	for ( i = 0 ; i < argc ; i++)
 	{
+		if(i+1 >= argc)
+			param_len = 0;
+		else	
+			param_len = strlen(argv[i+1]);
+		if(param_len > 0 && param_len <SWACL_STRING_PARAM_LEN)
+			sprintf(parse_param,"%s",argv[i+1]);
+		else
+			parse_param[0]='\0';
+		
 		for( j = 0;j < ARRAY_SIZE(g_swacl_act_rule_mapping);j++){
 			if(strcmp(argv[i], g_swacl_act_rule_mapping[j].swacl_field_name) == 0){
 
@@ -1238,6 +979,8 @@ swacl_if_cmd_process(char *command)
 						swacl_if_del_rule_entry_all();
 						kfree(swacl_rule_entry_p);
 						return 0;
+					case SWACL_IF_ACTION_DROP:
+						swacl_rule_entry_p->action_flags|=g_swacl_act_rule_mapping[j].field_flags;
 						
 #if 0						
 					case SWACL_IF_ACTION_RULE_COMMIT:
@@ -1258,14 +1001,31 @@ swacl_if_cmd_process(char *command)
 			}
 		}
 	}
-
+	if(g_swacl_priv.debug_filter >= SWACL_IF_DEBUG_LVL_2)		
+		dbprintk("cmd action_flags=0x%x\n",swacl_rule_entry_p->action_flags);
+	
 	if( !(swacl_rule_entry_p->action_flags & SWACL_IF_ACTION_ALL_FLAGE) ){
 		dbprintk("no set action rule cmd");
 		goto err_return;
 	}
+
 	for ( i = 0 ; i < argc ; i++)
 	{
+		if(i+1 >= argc)
+			param_len = 0;
+		else	
+			param_len = strlen(argv[i+1]);
+		
+		if(param_len > 0 && param_len <SWACL_STRING_PARAM_LEN)
+			sprintf(parse_param,"%s",argv[i+1]);
+		else
+			parse_param[0]='\0';
+		
+		if(g_swacl_priv.debug_filter >= SWACL_IF_DEBUG_LVL_2)		
+			dbprintk("cmd[%d]=%s,param=%s\n",i,argv[i],parse_param);
+		
 		for( j = 0;j < ARRAY_SIZE(g_swacl_rule_mapping);j++){
+			
 			if(strcmp(argv[i], g_swacl_rule_mapping[j].swacl_field_name) == 0){
 
 				if(!(g_swacl_rule_mapping[j].field_flags & SWACL_IF_FILTER_ALL_FLAGE) ){
@@ -1289,28 +1049,128 @@ swacl_if_cmd_process(char *command)
 			}
 		}
 	}	
-
-	if((ret=swacl_if_commit_global_rule_entry(swacl_rule_entry_p)) < 0){
-		dbprintk("commit: error (%d) \n", ret);		
+	if(g_swacl_priv.debug_filter >= SWACL_IF_DEBUG_LVL_2)		
+		dbprintk("cmd filter_flags=0x%x\n",swacl_rule_entry_p->filter_flags);
+	
+	if((swacl_rule_entry_p->filter_flags&(SWACL_IF_filter_DMAC|SWACL_IF_filter_DMAC_PRE))==SWACL_IF_filter_DMAC){
+		swacl_rule_entry_p->dmac_prefix = 48;
+		swacl_rule_entry_p->filter_flags |= SWACL_IF_filter_DMAC_PRE;
+	}
+	
+	if((swacl_rule_entry_p->filter_flags&(SWACL_IF_filter_SMAC|SWACL_IF_filter_SMAC_PRE))==SWACL_IF_filter_SMAC){
+		swacl_rule_entry_p->smac_prefix = 48;
+		swacl_rule_entry_p->filter_flags |= SWACL_IF_filter_SMAC_PRE;
 	}
 
+	if((swacl_rule_entry_p->filter_flags&(SWACL_IF_filter_DIP|SWACL_IF_filter_DIP_PRE))==SWACL_IF_filter_DIP){
+		swacl_rule_entry_p->dip_prefix = 32;
+		swacl_rule_entry_p->filter_flags |= SWACL_IF_filter_DIP_PRE;
+	}
+
+	if((swacl_rule_entry_p->filter_flags&(SWACL_IF_filter_SIP|SWACL_IF_filter_SIP_PRE))==SWACL_IF_filter_SIP){
+		swacl_rule_entry_p->sip_prefix = 32;
+		swacl_rule_entry_p->filter_flags |= SWACL_IF_filter_SIP_PRE;
+	}
+
+	if((swacl_rule_entry_p->filter_flags&(SWACL_IF_filter_V6_SIP|SWACL_IF_filter_V6_SIP_PRE))==SWACL_IF_filter_V6_SIP){
+		swacl_rule_entry_p->v6sip_prefix = 128;
+		swacl_rule_entry_p->filter_flags |= SWACL_IF_filter_V6_SIP_PRE;
+	}
+
+	if((swacl_rule_entry_p->filter_flags&(SWACL_IF_filter_V6_DIP|SWACL_IF_filter_V6_DIP_PRE))==SWACL_IF_filter_V6_DIP){
+		swacl_rule_entry_p->v6dip_prefix = 128;
+		swacl_rule_entry_p->filter_flags |= SWACL_IF_filter_V6_DIP_PRE;
+	}
+	
+	if((ret=swacl_if_commit_global_rule_entry(swacl_rule_entry_p)) == 0){
+		dbprintk("commit: success (%d) \n", ret);
+		dbprintk("commit: success filter(%4x) \n", swacl_rule_entry_p->filter_flags);
+		dbprintk("commit: success act(%4x) \n", swacl_rule_entry_p->action_flags);
+		return 0;
+	}
+	dbprintk("commit: error (%d) \n", ret);
 err_return:
 	kfree(swacl_rule_entry_p);
 
-	printk("%s:  cmd error\n", SWACL_PROC_NAME_ROOT );
+	//printk("%s:cmd error\n", SWACL_PROC_NAME_ROOT );
 	 
 	return 0;
 }
 static ssize_t
-swacl_if_proc_entry_write(struct file *file, const char *buffer, size_t count, loff_t * data)
+swacl_if_proc_debug_write(struct file *file, const char *buffer, size_t count, loff_t * data)
 {
+	static char debug_cmd[SWACL_STRING_PARAM_LEN];
+	int argc = 0,i,value;
+	char *argv[SWACL_STRING_DBG_PARAM_ARRAY_LEN];
+	char *param_str;
+	
+	memset(debug_cmd,0x0,SWACL_STRING_PARAM_LEN);
+	
+	if (count > 0 && count < SWACL_STRING_PARAM_LEN) {
+		if (copy_from_user(debug_cmd, buffer, count))
+			return -EFAULT;
+		debug_cmd[count - 1] = '\0';
+		argc = swacl_if_str2argv(debug_cmd, argv, SWACL_STRING_DBG_PARAM_ARRAY_LEN);
+	}
+
+	for ( i = 0 ; i < argc ; i++)
+	{
+		if(strcmp(argv[i],"debug_rx") == 0){
+			if(i+1 >= argc){
+				dbprintk("debug_rx no param\n");
+				goto debug_proc_done;
+			}
+			param_str = swacl_util_trim(argv[i+1]);
+			if(!swacl_util_string_is_digit(param_str)){
+				dbprintk("debug_rx isn't digit\n");		
+				goto debug_proc_done;
+			}
+			value = simple_strtoul(param_str,NULL,10);
+			g_swacl_priv.debug_rx = value;
+		}else if(strcmp(argv[i],"debug_filter") == 0){
+			if(i+1 >= argc){
+				dbprintk("debug_filter no param\n");
+				goto debug_proc_done;
+			}
+			param_str = swacl_util_trim(argv[i+1]);
+			if(!swacl_util_string_is_digit(param_str)){
+				dbprintk("debug_filter isn't digit\n");		
+				goto debug_proc_done;
+			}
+			value = simple_strtoul(param_str,NULL,10);
+			g_swacl_priv.debug_filter = value;
+		}else if(strcmp(argv[i],"debug_cmp") == 0){
+			if(i+1 >= argc){
+				dbprintk("debug_cmp no param\n");
+				goto debug_proc_done;
+			}
+			param_str = swacl_util_trim(argv[i+1]);
+			if(!swacl_util_string_is_digit(param_str)){
+				dbprintk("debug_cmp isn't digit\n");		
+				goto debug_proc_done;
+			}
+			value = simple_strtoul(param_str,NULL,10);
+			g_swacl_priv.debug_cmp = value;
+		}
+		
+	}
+
+debug_proc_done:	
+	return count;
+
+}
+
+static ssize_t
+swacl_if_proc_entry_write(struct file *file, const char *buffer, size_t count, loff_t * data)
+{	
 	return count;
 }
 static ssize_t
 swacl_if_proc_cmd_write(struct file *file, const char *buffer, size_t count, loff_t * data)
 {
-	static char cmd[1024];
-	if (count > 0 && count < 1024) {
+	static char cmd[SWACL_STRING_BUFF_LEN];
+	memset(cmd,0x0,SWACL_STRING_BUFF_LEN);
+	if (count > 0 && count < SWACL_STRING_BUFF_LEN) {
 		if (copy_from_user(cmd, buffer, count))
 			return -EFAULT;
 		cmd[count - 1] = '\0';
@@ -1362,7 +1222,8 @@ swacl_if_proc_entry_read(struct seq_file *seq, void *v)
 	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){		
 
 		seq_printf(seq, "swacl rule entry (%d)\n",pos);	
-		
+		seq_printf(seq, "filter flags(%4x)\n",rule_entry_pos->filter_flags);	
+		seq_printf(seq, "action flags(%4x)\n",rule_entry_pos->action_flags);	
 		for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
 			if((rule_entry_pos->filter_flags & (1<<i))){
 				if((idx = swacl_if_get_filter_map_idx((1<<i)))>=0){
@@ -1407,10 +1268,19 @@ swacl_if_proc_entry_read(struct seq_file *seq, void *v)
 			
 		}
 		pos++;
+		seq_printf(seq, "\n");	
 	}
 	rcu_read_unlock();
 	return 0;
 
+}
+static int
+swacl_if_proc_debug_read(struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "debug_rx=(%d)\n",g_swacl_priv.debug_rx);	
+	seq_printf(seq, "debug_filter=(%d)\n",g_swacl_priv.debug_filter);	
+	seq_printf(seq, "debug_cmp=(%d)\n",g_swacl_priv.debug_cmp);	
+	return 0;
 }
 
 static int
@@ -1434,6 +1304,17 @@ swacl_if_proc_entry_open(struct inode *inode, struct file *file)
 #endif
 
 }
+static int
+swacl_if_proc_debug_open(struct inode *inode, struct file *file)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
+	return single_open(file, swacl_if_proc_debug_read, PDE(inode)->data);
+#else
+	return single_open(file, swacl_if_proc_debug_read, PDE_DATA(inode));
+#endif
+
+}
+
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
 static struct proc_ops
@@ -1444,7 +1325,9 @@ static struct proc_ops
 	.proc_lseek = seq_lseek,
 	.proc_release = single_release,
 };
+
 #else
+
 static struct file_operations
  swacl_proc_cmd_fop = {
 	.open = swacl_if_proc_cmd_open,
@@ -1475,6 +1358,27 @@ static struct file_operations
 };
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
+
+static struct file_operations
+ swacl_proc_debug_fop = {
+	.proc_open = swacl_if_proc_debug_open,
+	.proc_write = swacl_if_proc_debug_write,
+	.proc_read = seq_read,
+	.proc_llseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
+ static struct file_operations
+ swacl_proc_debug_fop = {
+	.open = swacl_if_proc_debug_open,
+	.write = swacl_if_proc_debug_write,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+#endif
 // proc swacl init & cleanup //////////////////////////////////////////////////////////////////////////
 
 struct proc_name_fop_t {
@@ -1488,7 +1392,8 @@ struct proc_name_fop_t {
 };
 static struct proc_name_fop_t proc_swacl_list[] = {
 	{ "cmd", &swacl_proc_cmd_fop, NULL },
-	{ "entry", &swacl_proc_entry_fop, NULL },	
+	{ "entry", &swacl_proc_entry_fop, NULL },
+	{ "debug", &swacl_proc_debug_fop, NULL },
 };
 
 int

@@ -8,6 +8,8 @@ int
 swacl_util_string_is_xdigit(char *str);
 int
 swacl_util_string_is_digit(char *str);
+char *
+swacl_util_trim(char *s);
 int
 swacl_if_parse_OUI(char * param_str,struct swacl_if_rule_entry * rule_entry);
 int
@@ -116,5 +118,7 @@ int
 swacl_if_act_pbit_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry);
 int
 swacl_if_rule_priority_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry);
+unsigned int
+swacl_if_filter_cmp(struct swacl_if_rule_entry * src_entry,struct swacl_if_rule_entry * dst_entry);
 
 #endif

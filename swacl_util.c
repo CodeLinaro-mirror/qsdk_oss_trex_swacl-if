@@ -30,14 +30,15 @@
 #include "swacl_if.h"
 #include "swacl_util.h"
 
+extern struct swacl_if_priv g_swacl_priv;
 int
 swacl_if_str2argv(char *str, char *argv[], int argv_size)
 {
-	static char buff[1024];
+	static char buff[SWACL_STRING_BUFF_LEN];
 	char *p = buff;
 	int i = 0;
-
-	strncpy(buff, str, 1024);
+	memset(buff,0x0,SWACL_STRING_BUFF_LEN);
+	strncpy(buff, str, SWACL_STRING_BUFF_LEN);
 	while (p != NULL) {
 		argv[i] = strsep(&p, " \t");
 		if (strlen(argv[i]) > 0) {
@@ -119,7 +120,7 @@ swacl_util_string_is_digit(char *str)
 int
 swacl_if_OUI_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
-	sprintf(param_str,"%2x:%2x:%2x",rule_entry->oui[0],rule_entry->oui[1],rule_entry->oui[2]);
+	sprintf(param_str,"%2.2x:%2.2x:%2.2x",rule_entry->oui[0],rule_entry->oui[1],rule_entry->oui[2]);
 	return 0;
 }
 
@@ -131,6 +132,10 @@ swacl_if_parse_OUI(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	unsigned int pos=0,value=0;	
 	char * buf = param_str;
 	
+	if(strlen(param_str)==0){
+		dbprintk("OUI: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	while ((p_str = strsep(&buf, s1)) != NULL) {
 		
 		p_str = swacl_util_trim(p_str);
@@ -146,10 +151,14 @@ swacl_if_parse_OUI(char * param_str,struct swacl_if_rule_entry * rule_entry)
 		rule_entry->oui[pos] = (unsigned char)value;
 		pos++;			
 	}
-	if(pos != OUI_LEN-1){
+	if(pos != OUI_LEN){
 		dbprintk("OUI: format error\n");
 		memset(rule_entry->oui,0x0,OUI_LEN);
 		rule_entry->filter_flags |= ~SWACL_IF_filter_OUI;
+		return SWACL_IF_ERROR;
+	}
+	if(rule_entry->oui[0]==0 && rule_entry->oui[1]==0&&rule_entry->oui[2]==0){
+		dbprintk("OUI: all zero\n");
 		return SWACL_IF_ERROR;
 	}
 	rule_entry->filter_flags |= SWACL_IF_filter_OUI;
@@ -159,7 +168,7 @@ swacl_if_parse_OUI(char * param_str,struct swacl_if_rule_entry * rule_entry)
 int
 swacl_if_ethertype_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
-	sprintf(param_str,"0x%4x",rule_entry->ethertype);
+	sprintf(param_str,"0x%4.4x",rule_entry->ethertype);
 	return 0;
 }
 
@@ -167,18 +176,29 @@ int
 swacl_if_parse_ethertype(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
+	char*        tmp_str;
 
+	if(strlen(param_str)==0){
+		dbprintk("ETHERTYPE: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	param_str = swacl_util_trim(param_str);
 	if(strncmp(param_str,"0x",2) != 0 && strncmp(param_str,"0X",2) != 0){
 		dbprintk("ETHERTYPE: format error\n");	
 		return SWACL_IF_ERROR;
 	}
-	if(!swacl_util_string_is_xdigit(param_str)){
+	tmp_str=param_str+2;
+	if(!swacl_util_string_is_xdigit(tmp_str)){
 		dbprintk("ETHERTYPE: isn't xdigit\n");	
 		return SWACL_IF_ERROR;
 	}
 		
-	value = simple_strtoul(param_str,NULL,16);
+	value = simple_strtoul(tmp_str,NULL,16);
+	if(value == 0){
+		dbprintk("ETHERTYPE: zero value\n");	
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->ethertype = (unsigned short)value;	
 	rule_entry->filter_flags |= SWACL_IF_filter_ETHERTYPE;
 
@@ -188,7 +208,7 @@ swacl_if_parse_ethertype(char * param_str,struct swacl_if_rule_entry * rule_entr
 int 
 swacl_if_dmac_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
-	sprintf(param_str,"%2x:%2x:%2x:%2x:%2x:%2x",rule_entry->dmac[0],rule_entry->dmac[1],rule_entry->dmac[2]
+	sprintf(param_str,"%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x",rule_entry->dmac[0],rule_entry->dmac[1],rule_entry->dmac[2]
 		,rule_entry->dmac[3],rule_entry->dmac[4],rule_entry->dmac[5]);
 	return 0;
 
@@ -201,26 +221,36 @@ swacl_if_parse_dmac(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	char * p_str=NULL;
 	unsigned int pos=0,value=0;	
 	char * buf = param_str;
-	
+
+	if(strlen(param_str)==0){
+		dbprintk("dmac: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	while ((p_str = strsep(&buf, s1)) != NULL) {
 		
 		p_str = swacl_util_trim(p_str);
 
 		if(!swacl_util_string_is_xdigit(p_str)){
 			dbprintk("dmac: isn't xdigit\n");
-			memset(rule_entry->dmac,0x0,VLAN_ETH_ALEN);
+			memset(rule_entry->dmac,0x0,ETH_ALEN);
 			rule_entry->filter_flags |= ~SWACL_IF_filter_DMAC;
 			return SWACL_IF_ERROR;
 		}
 		
 		value = simple_strtoul(p_str,NULL,16);	
-		rule_entry->oui[pos] = (unsigned char)value;
+		rule_entry->dmac[pos] = (unsigned char)value;
 		pos++;			
 	}
-	if(pos != VLAN_ETH_ALEN){
+	if(pos != ETH_ALEN){
 		dbprintk("dmac: format error\n");
-		memset(rule_entry->dmac,0x0,VLAN_ETH_ALEN);
+		memset(rule_entry->dmac,0x0,ETH_ALEN);
 		rule_entry->filter_flags |= ~SWACL_IF_filter_DMAC;
+		return SWACL_IF_ERROR;
+	}
+
+	if(rule_entry->dmac[0]==0 && rule_entry->dmac[1]==0&&rule_entry->dmac[2]==0
+		&&rule_entry->dmac[3]==0 && rule_entry->dmac[4]==0&&rule_entry->dmac[5]==0){
+		dbprintk("dmac: all zero\n");
 		return SWACL_IF_ERROR;
 	}
 	rule_entry->filter_flags |= SWACL_IF_filter_DMAC;
@@ -239,6 +269,11 @@ swacl_if_parse_dmac_prefix(char * param_str,struct swacl_if_rule_entry * rule_en
 {
 	unsigned int value=0;
 
+	if(strlen(param_str)==0){
+		dbprintk("dmac_prefix: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("dmac_prefix: isn't digit\n");		
@@ -246,6 +281,10 @@ swacl_if_parse_dmac_prefix(char * param_str,struct swacl_if_rule_entry * rule_en
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value > 48 || (value%8) !=0 || value ==0){
+		dbprintk("dmac_prefix: range err(%d)\n",value);		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->dmac_prefix = (unsigned short)value;	
 	rule_entry->filter_flags |= SWACL_IF_filter_DMAC_PRE;
 
@@ -255,7 +294,7 @@ swacl_if_parse_dmac_prefix(char * param_str,struct swacl_if_rule_entry * rule_en
 int 
 swacl_if_smac_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
-	sprintf(param_str,"%2x:%2x:%2x:%2x:%2x:%2x",rule_entry->smac[0],rule_entry->smac[1],rule_entry->smac[2]
+	sprintf(param_str,"%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x",rule_entry->smac[0],rule_entry->smac[1],rule_entry->smac[2]
 		,rule_entry->smac[3],rule_entry->smac[4],rule_entry->smac[5]);
 	return 0;
 }
@@ -268,6 +307,11 @@ swacl_if_parse_smac(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	char * p_str=NULL;
 	unsigned int pos=0,value=0;	
 	char * buf = param_str;
+
+	if(strlen(param_str)==0){
+		dbprintk("smac: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	
 	while ((p_str = strsep(&buf, s1)) != NULL) {
 		
@@ -275,19 +319,28 @@ swacl_if_parse_smac(char * param_str,struct swacl_if_rule_entry * rule_entry)
 
 		if(!swacl_util_string_is_xdigit(p_str)){
 			dbprintk("smac: isn't xdigit\n");
-			memset(rule_entry->dmac,0x0,VLAN_ETH_ALEN);
+			memset(rule_entry->dmac,0x0,ETH_ALEN);
 			rule_entry->filter_flags |= ~SWACL_IF_filter_SMAC;
 			return SWACL_IF_ERROR;
 		}
 		
 		value = simple_strtoul(p_str,NULL,16);	
-		rule_entry->oui[pos] = (unsigned char)value;
+		rule_entry->smac[pos] = (unsigned char)value;
 		pos++;			
 	}
-	if(pos != VLAN_ETH_ALEN){
+	
+
+
+	if(pos != ETH_ALEN){
 		dbprintk("smac: format error\n");
-		memset(rule_entry->dmac,0x0,VLAN_ETH_ALEN);
+		memset(rule_entry->dmac,0x0,ETH_ALEN);
 		rule_entry->filter_flags |= ~SWACL_IF_filter_SMAC;
+		return SWACL_IF_ERROR;
+	}
+
+	if(rule_entry->smac[0]==0 && rule_entry->smac[1]==0&&rule_entry->smac[2]==0
+		&&rule_entry->smac[3]==0 && rule_entry->smac[4]==0&&rule_entry->smac[5]==0){
+		dbprintk("smac: all zero\n");
 		return SWACL_IF_ERROR;
 	}
 	rule_entry->filter_flags |= SWACL_IF_filter_SMAC;
@@ -297,7 +350,7 @@ swacl_if_parse_smac(char * param_str,struct swacl_if_rule_entry * rule_entry)
 int 
 swacl_if_smac_prefix_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
-	sprintf(param_str,"%d",rule_entry->dmac_prefix);
+	sprintf(param_str,"%d",rule_entry->smac_prefix);
 	return 0;
 }
 
@@ -306,6 +359,11 @@ swacl_if_parse_smac_prefix(char * param_str,struct swacl_if_rule_entry * rule_en
 {
 	unsigned int value=0;
 
+	if(strlen(param_str)==0){
+		dbprintk("smac_prefix: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("smac_prefix: isn't digit\n");		
@@ -313,7 +371,12 @@ swacl_if_parse_smac_prefix(char * param_str,struct swacl_if_rule_entry * rule_en
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
-	rule_entry->ethertype = (unsigned short)value;	
+	
+	if(value > 48 || (value%8) !=0 || value ==0){
+		dbprintk("smac_prefix: range err(%d)\n",value);		
+		return SWACL_IF_ERROR;
+	}
+	rule_entry->smac_prefix = (unsigned short)value;	
 	rule_entry->filter_flags |= SWACL_IF_filter_SMAC_PRE;
 
 	return SWACL_IF_SUCCESS;
@@ -333,7 +396,11 @@ swacl_if_parse_ifname(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	unsigned int slen=0;	
 	char * buf = param_str;
 
-		
+	if(strlen(param_str)==0){
+		dbprintk("ifname: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	p_str = swacl_util_trim(buf);
 	
 	if((slen = strlen(p_str)) > IFNAMSIZ){
@@ -347,7 +414,7 @@ swacl_if_parse_ifname(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	dev_put(lowdev);
 	strncpy(rule_entry->bind_ifname,buf,slen);
 	rule_entry->filter_flags |= SWACL_IF_filter_IFNAME;
-		
+	//dbprintk("ifname: parse ok (0x%x)\n",rule_entry->filter_flags);			
 	
 	return SWACL_IF_SUCCESS;
 
@@ -364,6 +431,11 @@ swacl_if_parse_v4proto(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
 
+	if(strlen(param_str)==0){
+		dbprintk("v4proto: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("v4proto: isn't digit\n");		
@@ -371,7 +443,7 @@ swacl_if_parse_v4proto(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
-	if(value > 255){
+	if(value > 255 || value == 0){
 		dbprintk("v4proto: error range\n");		
 		return SWACL_IF_ERROR;
 	}
@@ -395,6 +467,11 @@ swacl_if_parse_v6_nxt_header(char * param_str,struct swacl_if_rule_entry * rule_
 {
 	
 	unsigned int value=0;
+
+	if(strlen(param_str)==0){
+		dbprintk("v6_nxt_header: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
@@ -403,7 +480,7 @@ swacl_if_parse_v6_nxt_header(char * param_str,struct swacl_if_rule_entry * rule_
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
-	if(value > 255){
+	if(value > 255 || value == 0){
 		dbprintk("v6_nxt_header: error range\n");		
 		return SWACL_IF_ERROR;
 	}
@@ -430,6 +507,10 @@ swacl_if_parse_dip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	unsigned int pos=0,value=0;	
 	char * buf = param_str;
 
+	if(strlen(param_str)==0){
+		dbprintk("dip: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	if((p_str = strstr(buf, s1)) == NULL){
 		
 		dbprintk("dip: format error(%s)\n",buf);		
@@ -452,8 +533,8 @@ swacl_if_parse_dip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 		}
 
 	}
-	if(pos!=4){
-		dbprintk("dip: format error\n");		
+	if(pos!=4 || rule_entry->dip == 0){
+		dbprintk("dip: format error or zero\n");		
 		return SWACL_IF_ERROR;
 	}
 	rule_entry->filter_flags |= SWACL_IF_filter_DIP;
@@ -471,7 +552,11 @@ int
 swacl_if_parse_dip_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-	
+
+	if(strlen(param_str)==0){
+		dbprintk("prefix: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("dip prefix: isn't digit\n");		
@@ -480,8 +565,8 @@ swacl_if_parse_dip_prefix(char * param_str,struct swacl_if_rule_entry * rule_ent
 		
 	value = simple_strtoul(param_str,NULL,10);
 
-	if(value>32){
-		dbprintk("dip prefix: range error\n");		
+	if(value>32 || (value%8)!=0 || value ==0){
+		dbprintk("dip prefix: range error(%u)\n",value);		
 		return SWACL_IF_ERROR;
 	}
 	rule_entry->dip_prefix = (unsigned short)value;	
@@ -506,6 +591,12 @@ swacl_if_parse_sip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	unsigned int pos=0,value=0;	
 	char * buf = param_str;
 
+	
+	if(strlen(param_str)==0){
+		dbprintk("sip: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	if((p_str = strstr(buf, s1)) == NULL){
 		
 		dbprintk("sip: format error(%s)\n",buf);		
@@ -528,11 +619,13 @@ swacl_if_parse_sip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 		}
 
 	}
-	if(pos!=4){
+	if(pos!=4 || rule_entry->sip == 0){
 		dbprintk("sip: format error\n");		
 		return SWACL_IF_ERROR;
 	}
+
 	rule_entry->filter_flags |= SWACL_IF_filter_SIP;
+	
 	return SWACL_IF_SUCCESS;
 
 }
@@ -547,6 +640,11 @@ int
 swacl_if_parse_sip_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
+
+	if(strlen(param_str)==0){
+		dbprintk("sip prefix: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
@@ -555,16 +653,20 @@ swacl_if_parse_sip_prefix(char * param_str,struct swacl_if_rule_entry * rule_ent
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value>32 || (value%8)!=0 || value == 0){
+		dbprintk("sip prefix: range error(%u)\n",value);		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->sip_prefix = (unsigned short)value;	
 	rule_entry->filter_flags |= SWACL_IF_filter_SIP_PRE;
-
+	//dbprintk("sip prefix: parse ok(0x%x)\n",rule_entry->filter_flags);
 	return SWACL_IF_SUCCESS;	
 
 }
 int
 swacl_if_v6_dip_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
-	sprintf(param_str, "%x:%x:%x:%x:%x:%x:%x:%x", 
+	sprintf(param_str, "%4.4x:%4.4x:%4.4x:%4.4x:%4.4x:%4.4x:%4.4x:%4.4x", 
 		ntohs(rule_entry->v6dip.s6_addr16[0]), ntohs(rule_entry->v6dip.s6_addr16[1]),
 		ntohs(rule_entry->v6dip.s6_addr16[2]), ntohs(rule_entry->v6dip.s6_addr16[3]),
 		ntohs(rule_entry->v6dip.s6_addr16[4]), ntohs(rule_entry->v6dip.s6_addr16[5]),
@@ -581,6 +683,11 @@ swacl_if_parse_v6_dip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	unsigned int len=0;	
 	char * buf = param_str;
 
+	if(strlen(param_str)==0){
+		dbprintk("v6 dip: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	if((p_str = strstr(buf, s1)) == NULL){
 		
 		dbprintk("v6 dip: format error(%s)\n",buf);		
@@ -611,7 +718,12 @@ int
 swacl_if_parse_v6_dip_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("v6 prefix: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("ip6 prefix: isn't digit\n");		
@@ -619,7 +731,7 @@ swacl_if_parse_v6_dip_prefix(char * param_str,struct swacl_if_rule_entry * rule_
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
-	if(value>128){
+	if(value>128 || (value%8)!=0 || value ==0){
 		dbprintk("ip6 prefix: range error\n");		
 		return SWACL_IF_ERROR;
 	}
@@ -633,7 +745,7 @@ swacl_if_parse_v6_dip_prefix(char * param_str,struct swacl_if_rule_entry * rule_
 int
 swacl_if_v6_sip_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
-	sprintf(param_str, "%x:%x:%x:%x:%x:%x:%x:%x", 
+	sprintf(param_str, "%4.4x:%4.4x:%4.4x:%4.4x:%4.4x:%4.4x:%4.4x:%4.4x", 
 		ntohs(rule_entry->v6sip.s6_addr16[0]), ntohs(rule_entry->v6sip.s6_addr16[1]),
 		ntohs(rule_entry->v6sip.s6_addr16[2]), ntohs(rule_entry->v6sip.s6_addr16[3]),
 		ntohs(rule_entry->v6sip.s6_addr16[4]), ntohs(rule_entry->v6sip.s6_addr16[5]),
@@ -650,6 +762,10 @@ swacl_if_parse_v6_sip(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	unsigned int len=0;	
 	char * buf = param_str;
 
+	if(strlen(param_str)==0){
+		dbprintk("v6 sip: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	if((p_str = strstr(buf, s1)) == NULL){
 		
 		dbprintk("v6 sip: format error(%s)\n",buf);		
@@ -680,7 +796,11 @@ int
 swacl_if_parse_v6_sip_prefix(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("v6 sip_pre: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("v6_sip prefix: isn't digit\n");		
@@ -688,7 +808,7 @@ swacl_if_parse_v6_sip_prefix(char * param_str,struct swacl_if_rule_entry * rule_
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
-	if(value>128){
+	if(value>128 || (value%8)!=0 || value == 0){
 		dbprintk("ip6 prefix: range error\n");		
 		return SWACL_IF_ERROR;
 	}
@@ -708,7 +828,11 @@ int
 swacl_if_parse_dport(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("dport: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("dport: isn't digit\n");		
@@ -716,9 +840,13 @@ swacl_if_parse_dport(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value == 0){
+		dbprintk("dport: zero\n");		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->dport_start = (unsigned short)value; 
 	rule_entry->filter_flags |= SWACL_IF_filter_DPORT;
-
+	
 	return SWACL_IF_SUCCESS;	
 
 }
@@ -733,7 +861,11 @@ int
 swacl_if_parse_dport_end(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("dport_end: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("dport_end: isn't digit\n");		
@@ -758,7 +890,11 @@ int
 swacl_if_parse_sport(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("sport: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("sport: isn't digit\n");		
@@ -766,6 +902,10 @@ swacl_if_parse_sport(char * param_str,struct swacl_if_rule_entry * rule_entry)
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value == 0){
+		dbprintk("sport: zero\n");		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->sport_start = (unsigned short)value; 
 	rule_entry->filter_flags |= SWACL_IF_filter_SPORT;
 
@@ -783,7 +923,12 @@ int
 swacl_if_parse_sport_end(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("sport_end: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("sport_end: isn't digit\n");		
@@ -808,14 +953,23 @@ int
 swacl_if_parse_filter_vlan(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("vlan filter: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
-		dbprintk("sport_end: isn't digit\n");		
+		dbprintk("vlan filter: isn't digit\n");		
 		return SWACL_IF_ERROR;
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+
+	if(value <=0 || value >4095){
+		dbprintk("vlan filter: value illegel(%d)\n",value);		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->vlantag_id = (unsigned short)value; 
 	rule_entry->filter_flags |= SWACL_IF_filter_VLAN;
 
@@ -832,14 +986,23 @@ int
 swacl_if_parse_filter_vlan_pbit(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("pbit filter: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
-		dbprintk("sport_end: isn't digit\n");		
+		dbprintk("pbit: isn't digit\n");		
 		return SWACL_IF_ERROR;
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value <0 || value >7){
+		dbprintk("pbit filter: value illegel(%d)\n",value);		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->vlan_tag_pbit = (unsigned short)value; 
 	rule_entry->filter_flags |= SWACL_IF_filter_VLAN_PRI;
 
@@ -856,16 +1019,24 @@ int
 swacl_if_parse_act_vlan(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("act vlan: null string\n");
+		return SWACL_IF_ERROR;
+	}
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
-		dbprintk("sport_end: isn't digit\n");		
+		dbprintk("act vlan: isn't digit\n");		
 		return SWACL_IF_ERROR;
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value <=0 || value >4095){
+		dbprintk("act vlan: value illegel(%d)\n",value);		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->vlan_mark = (unsigned short)value; 
-	rule_entry->filter_flags |= SWACL_IF_ACTION_VLANTAG_CHG;
+	rule_entry->action_flags |= SWACL_IF_ACTION_VLANTAG_CHG;
 
 	return SWACL_IF_SUCCESS;		
 
@@ -881,16 +1052,25 @@ int
 swacl_if_parse_act_pbit(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("act pbit: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
-		dbprintk("sport_end: isn't digit\n");		
+		dbprintk("act pbit: isn't digit\n");		
 		return SWACL_IF_ERROR;
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value <0 || value >7){
+		dbprintk("act pbit: value illegel(%d)\n",value);		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->pbit_mark = (unsigned short)value; 
-	rule_entry->filter_flags |= SWACL_IF_ACTION_PBIT_CHG;
+	rule_entry->action_flags |= SWACL_IF_ACTION_PBIT_CHG;
 
 	return SWACL_IF_SUCCESS;		
 
@@ -906,7 +1086,12 @@ int
 swacl_if_parse_rule_priority(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
 	unsigned int value=0;
-		
+
+	if(strlen(param_str)==0){
+		dbprintk("rule pri: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	param_str = swacl_util_trim(param_str);
 	if(!swacl_util_string_is_digit(param_str)){
 		dbprintk("rule pri: isn't digit\n");		
@@ -915,9 +1100,264 @@ swacl_if_parse_rule_priority(char * param_str,struct swacl_if_rule_entry * rule_
 		
 	value = simple_strtoul(param_str,NULL,10);
 	rule_entry->priority = (unsigned short)value; 
-	rule_entry->filter_flags |= SWACL_IF_ACTION_RULE_PRIORITY;
+	rule_entry->action_flags |= SWACL_IF_ACTION_RULE_PRIORITY;
 
 	return SWACL_IF_SUCCESS;		
+}
+unsigned int
+swacl_if_filter_cmp(struct swacl_if_rule_entry * src_entry,struct swacl_if_rule_entry * dst_entry)
+{
+	int i,j,cmp_b,cmp_prex;
+	unsigned int match_filter=0;
+	
+	if(src_entry->filter_flags != dst_entry->filter_flags){
+		if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_1)
+			dbprintk("src(0x%x,dst(0x%x) \n",src_entry->filter_flags ,dst_entry->filter_flags);
+		return SWACL_IF_MATCH_NO_FILTER;
+	}
+	
+	for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
+		if((src_entry->filter_flags & (1<<i))){
+			switch((1<<i)) {
+				case SWACL_IF_filter_OUI:
+					if(memcmp(src_entry->oui,dst_entry->oui,OUI_LEN)==0){
+						match_filter |= SWACL_IF_filter_OUI;	
+					}else
+						goto not_match_filter;
+					break;
+				case SWACL_IF_filter_ETHERTYPE:							
+					if(src_entry->ethertype == dst_entry->ethertype){
+						match_filter |= SWACL_IF_filter_ETHERTYPE;	
+					}else
+						goto not_match_filter;
+					break;
+				case SWACL_IF_filter_DMAC:							
+					if(src_entry->filter_flags & SWACL_IF_filter_DMAC_PRE){
+						if(src_entry->dmac_prefix<=dst_entry->dmac_prefix)
+							cmp_b = (src_entry->dmac_prefix+7)/8;
+						else
+							cmp_b = (dst_entry->dmac_prefix+7)/8;
+
+						for(j=0;j<cmp_b;j++){
+							if(src_entry->dmac[j] != dst_entry->dmac[j]){
+								goto not_match_filter;
+							}
+						}			
+
+						
+						match_filter |= SWACL_IF_filter_DMAC | SWACL_IF_filter_DMAC_PRE;
+						
+					}
+					else{
+						if(memcmp(src_entry->dmac,dst_entry->dmac,ETH_ALEN)!=0){
+							goto not_match_filter;
+						}
+						match_filter |= SWACL_IF_filter_DMAC;
+					}
+					break;
+				case SWACL_IF_filter_DMAC_PRE:
+					
+					break;	
+				case SWACL_IF_filter_SMAC:							
+					if(src_entry->filter_flags & SWACL_IF_filter_SMAC_PRE){
+						if(src_entry->smac_prefix<=dst_entry->smac_prefix)
+							cmp_b = (src_entry->smac_prefix+7)/8;
+						else
+							cmp_b = (dst_entry->smac_prefix+7)/8;
+						
+						for(j=0;j<cmp_b-1;j++){
+							if(src_entry->smac[j] != dst_entry->smac[j]){
+								goto not_match_filter;
+							}
+						}						
+
+						match_filter |= SWACL_IF_filter_SMAC | SWACL_IF_filter_SMAC_PRE;
+						
+					}
+					else{
+						if(memcmp(src_entry->dmac,dst_entry->dmac,ETH_ALEN)!=0){
+							goto not_match_filter;
+						}
+						match_filter |= SWACL_IF_filter_SMAC;
+					}
+					break;
+				case SWACL_IF_filter_SMAC_PRE:							
+					
+					break;
+				case SWACL_IF_filter_V4_PROTO:							
+					if(src_entry->v4_protocol == dst_entry->v4_protocol){
+						match_filter |= SWACL_IF_filter_V4_PROTO;	
+					}else
+						goto not_match_filter;
+					break;	
+				case SWACL_IF_filter_V6_NXT_HEAD:							
+					if(src_entry->v6_next_header == dst_entry->v6_next_header){
+						match_filter |= SWACL_IF_filter_V6_NXT_HEAD;	
+					}else
+						goto not_match_filter;
+					break;
+				case SWACL_IF_filter_DIP:							
+					if(src_entry->filter_flags & SWACL_IF_filter_DIP_PRE){
+						if(src_entry->dip_prefix<=dst_entry->dip_prefix)
+							cmp_prex = SWCAL_IF_PARSE_4PREFIX << (32 -src_entry->dip_prefix);
+						else
+							cmp_prex = SWCAL_IF_PARSE_4PREFIX << (32 -dst_entry->dip_prefix);
+						
+						if ((src_entry->dip & cmp_prex) != (dst_entry->dip & cmp_prex)) {
+							goto not_match_filter;						
+						}
+						match_filter |= SWACL_IF_filter_DIP | SWACL_IF_filter_DIP_PRE;
+					}else{
+						if (src_entry->dip != dst_entry->dip) {
+							goto not_match_filter;					
+						}
+						match_filter |= SWACL_IF_filter_DIP;
+					}
+							
+					break;	
+				case SWACL_IF_filter_DIP_PRE:							
+					
+					break;	
+				case SWACL_IF_filter_SIP:							
+					if(src_entry->filter_flags & SWACL_IF_filter_SIP_PRE){
+						if(src_entry->sip_prefix<=dst_entry->sip_prefix)
+							cmp_prex = SWCAL_IF_PARSE_4PREFIX << (32 -src_entry->sip_prefix);
+						else
+							cmp_prex = SWCAL_IF_PARSE_4PREFIX << (32 -dst_entry->sip_prefix);
+						
+						if ((src_entry->sip & cmp_prex) != (dst_entry->sip & cmp_prex)) {
+							goto not_match_filter;						
+						}
+						match_filter |= SWACL_IF_filter_SIP | SWACL_IF_filter_SIP_PRE;
+					}else{
+						if (src_entry->sip != dst_entry->sip) {
+							goto not_match_filter;						
+						}
+						match_filter |= SWACL_IF_filter_SIP;
+					}
+					break;	
+				case SWACL_IF_filter_SIP_PRE:							
+					
+					break;
+				case SWACL_IF_filter_V6_DIP:
+					if(src_entry->filter_flags & SWACL_IF_filter_V6_DIP_PRE){
+						if(src_entry->v6dip_prefix<=dst_entry->v6dip_prefix)
+							cmp_b = (src_entry->v6dip_prefix+7)/8;
+						else
+							cmp_b = (dst_entry->v6dip_prefix+7)/8;
+						if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_2)
+							dbprintk("v6dip: cmp_b=%d\n",cmp_b);
+						for(j=0;j<cmp_b-1;j++){
+							if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_2)
+								dbprintk("cmp v6dip[%d]:0x%x-0x%x\n",j,src_entry->v6dip.s6_addr[j]
+									,dst_entry->v6dip.s6_addr[j]);
+							if(src_entry->v6dip.s6_addr[j] != dst_entry->v6dip.s6_addr[j]){
+								goto not_match_filter;	
+							}
+						}
+						
+						if(src_entry->v6dip_prefix<=dst_entry->v6dip_prefix)
+					
+						match_filter |= SWACL_IF_filter_V6_DIP | SWACL_IF_filter_V6_DIP_PRE;
+					}else{
+						if (memcmp(&src_entry->v6dip,&dst_entry->v6dip,sizeof(struct in6_addr))!=0 ){
+							goto not_match_filter;							
+						}
+						match_filter |= SWACL_IF_filter_V6_DIP;
+					}
+					break;
+				case SWACL_IF_filter_V6_DIP_PRE:
+					
+					break;	
+				case SWACL_IF_filter_V6_SIP:
+					if(src_entry->filter_flags & SWACL_IF_filter_V6_SIP_PRE){
+						if(src_entry->v6sip_prefix<=dst_entry->v6sip_prefix)
+							cmp_b = (src_entry->v6sip_prefix+7)/8;
+						else
+							cmp_b = (dst_entry->v6sip_prefix+7)/8;
+						if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_2)		
+							dbprintk("v6sip: cmp_b=%d\n",cmp_b);
+						
+						for(j=0;j<cmp_b;j++){
+							if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_2)
+								dbprintk("cmp v6sip[%d]:0x%x-0x%x\n",j,src_entry->v6sip.s6_addr[j]
+									,dst_entry->v6sip.s6_addr[j]);
+							if(src_entry->v6sip.s6_addr[j] != dst_entry->v6sip.s6_addr[j]){
+								goto not_match_filter;	
+							}
+						}
+						
+						match_filter |= SWACL_IF_filter_V6_SIP | SWACL_IF_filter_V6_SIP_PRE;
+					}else{
+						if (memcmp(&src_entry->v6sip,&dst_entry->v6sip,sizeof(struct in6_addr))!=0 ){
+							goto not_match_filter;							
+						}
+						match_filter |= SWACL_IF_filter_V6_SIP;
+					}
+					break;
+				case SWACL_IF_filter_V6_SIP_PRE:
+					
+					break;
+				case SWACL_IF_filter_DPORT:
+					if(src_entry->dport_start == dst_entry->dport_start){
+						match_filter |= SWACL_IF_filter_DPORT;
+					}else
+						goto not_match_filter;
+					break;
+				case SWACL_IF_filter_DPORT_END:
+					if(src_entry->dport_end == dst_entry->dport_end){
+						match_filter |= SWACL_IF_filter_DPORT_END;
+					}else
+						goto not_match_filter;
+					break;
+				case SWACL_IF_filter_SPORT:
+					if(src_entry->sport_start == dst_entry->sport_start){
+						match_filter |= SWACL_IF_filter_SPORT;
+					}else
+						goto not_match_filter;
+					break;
+				case SWACL_IF_filter_SPORT_END:
+					if(src_entry->sport_end == dst_entry->sport_end){
+						match_filter |= SWACL_IF_filter_SPORT_END;
+					}else
+						goto not_match_filter;
+					break;	
+				case SWACL_IF_filter_VLAN:
+					if(src_entry->vlantag_id == dst_entry->vlantag_id){
+						match_filter |= SWACL_IF_filter_VLAN;
+					}else
+						goto not_match_filter;
+					break;	
+				case SWACL_IF_filter_VLAN_PRI:
+					if(src_entry->vlan_tag_pbit == dst_entry->vlan_tag_pbit){
+						match_filter |= SWACL_IF_filter_VLAN_PRI;
+					}else
+						goto not_match_filter;
+					break;
+				case SWACL_IF_filter_IFNAME:
+					if(strcmp(src_entry->bind_ifname,dst_entry->bind_ifname)==0){
+						match_filter |= SWACL_IF_filter_IFNAME;
+					}else
+						goto not_match_filter;
+					break;
+				default:
+					break;
+					
+			}				
+
+		}
+
+	}
+	if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_1)
+			dbprintk("cmp match before: 0x%x-0x%x\n",src_entry->filter_flags,match_filter);
+	
+	if((src_entry->filter_flags & match_filter) == src_entry->filter_flags){
+		if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_1)
+			dbprintk("cmp match: 0x%x-0x%x\n",src_entry->filter_flags,match_filter);
+		return SWACL_IF_MATCH_FILTER_OK;
+	}
+not_match_filter:
+	return SWACL_IF_MATCH_NO_FILTER;
 }
 
 

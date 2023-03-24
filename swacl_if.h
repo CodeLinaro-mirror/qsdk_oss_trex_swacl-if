@@ -11,12 +11,12 @@
 #define SWACL_IF_NETDEV_TX_OK		0	// skb consumed by callee
 #define SWACL_IF_NETDEV_TX_DROP		1	// skb consumed by callee, but dropped
 
-#ifndef VLAN_ETH_ALEN
-#define VLAN_ETH_ALEN                   6
-#endif
 #define OUI_LEN                         3
 #define SWCAL_IF_PARSE_PREFIX           0xff 
 #define SWCAL_IF_PARSE_4PREFIX          0xffffffff
+
+#define SWACL_IF_DEBUG_LVL_1            1 
+#define SWACL_IF_DEBUG_LVL_2            2
 
 
 #define SWACL_IF_SUCCESS                         0
@@ -36,6 +36,13 @@
 #define SWACL_IF_MATCH_ACT_DROP                  0
 #define SWACL_IF_MATCH_ACT_OK                    1
 
+#define SWACL_IF_MATCH_NO_FILTER                 0
+#define SWACL_IF_MATCH_FILTER_OK                 1
+
+#define SWACL_STRING_BUFF_LEN                    1344
+#define SWACL_STRING_PARAM_LEN			 256	
+#define SWACL_STRING_PARAM_ARRAY_LEN		 48
+#define SWACL_STRING_DBG_PARAM_ARRAY_LEN	 12
 
 
 enum swacl_filter_field_e {
@@ -126,9 +133,9 @@ struct swacl_if_rule_entry {
 	unsigned int       action_flags;
         unsigned char      oui[OUI_LEN];
         unsigned short     ethertype;
-        unsigned char      dmac[VLAN_ETH_ALEN];
+        unsigned char      dmac[ETH_ALEN];
         unsigned short     dmac_prefix;
-        unsigned char      smac[VLAN_ETH_ALEN];
+        unsigned char      smac[ETH_ALEN];
         unsigned short     smac_prefix;
         char               bind_ifname[IFNAMSIZ];
         unsigned char      v4_protocol;
@@ -157,7 +164,8 @@ struct swacl_if_priv {
 	struct net_device        *swacl_dev;
 	struct proc_dir_entry    *swacl_pde;
 	unsigned int              debug_rx:2;
-	unsigned int              debug_tx:2;
+	unsigned int              debug_filter:2;
+	unsigned int              debug_cmp:2;
 	struct net_device_stats   stats;
 	struct mutex		  swacl_mutex;
 	struct list_head	  swacl_list;
