@@ -161,12 +161,14 @@ struct swacl_if_rule_entry {
 };
 
 struct swacl_if_priv {
-	struct net_device        *swacl_dev;
+	struct miscdevice        swacl_dev;
 	struct proc_dir_entry    *swacl_pde;
 	unsigned int              debug_rx:2;
 	unsigned int              debug_filter:2;
 	unsigned int              debug_cmp:2;
-	struct net_device_stats   stats;
+	unsigned int              rx_packets;
+	unsigned int              rx_dropped;
+	unsigned int              rx_act;
 	struct mutex		  swacl_mutex;
 	struct list_head	  swacl_list;
 	

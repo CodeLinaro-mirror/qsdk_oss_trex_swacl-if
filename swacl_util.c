@@ -26,6 +26,7 @@
 #include <linux/inet.h>
 
 #include <net/switchdev.h>
+#include <linux/miscdevice.h>
 
 #include "swacl_if.h"
 #include "swacl_util.h"
@@ -873,6 +874,10 @@ swacl_if_parse_dport_end(char * param_str,struct swacl_if_rule_entry * rule_entr
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	if(value == 0){
+		dbprintk("dport end: zero\n");		
+		return SWACL_IF_ERROR;
+	}
 	rule_entry->dport_end = (unsigned short)value; 
 	rule_entry->filter_flags |= SWACL_IF_filter_DPORT_END;
 
@@ -936,6 +941,12 @@ swacl_if_parse_sport_end(char * param_str,struct swacl_if_rule_entry * rule_entr
 	}
 		
 	value = simple_strtoul(param_str,NULL,10);
+	
+	if(value == 0){
+		dbprintk("sport_end: zero\n");		
+		return SWACL_IF_ERROR;
+	}
+		
 	rule_entry->sport_end = (unsigned short)value; 
 	rule_entry->filter_flags |= SWACL_IF_filter_SPORT_END;
 

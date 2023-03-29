@@ -12,8 +12,8 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
-#include <linux/netdevice.h>
-#include <linux/etherdevice.h>
+//#include <linux/netdevice.h>
+//#include <linux/etherdevice.h>
 #include <linux/list.h>
 
 #include <linux/if_ether.h>
@@ -29,6 +29,7 @@
 
 
 #include <net/switchdev.h>
+#include <linux/miscdevice.h>
 #include "swacl_if.h"
 #include "swacl_util.h"
 
@@ -299,74 +300,39 @@ static int swacl_if_commit_global_rule_entry(struct swacl_if_rule_entry * rule_e
 		
 	return 0;
 }
-#if 0
-static void
-swacl_if_stop_rxtx(struct net_device *dev)
-{
 
-}
-
-static void
-swacl_if_start_rxtx(struct net_device *dev)
-{
-}
-#endif
 static int
-swacl_if_open(struct net_device *dev)
+swacl_if_open(struct inode *inode, struct file *filp)
 {
-	try_module_get(THIS_MODULE);
-
-	netif_start_queue(dev);
+	
 
 	return 0;
 }
 
 static int
-swacl_if_close(struct net_device *dev)
+swacl_if_close(struct inode *inode, struct file *filp)
 {
-	netif_stop_queue(dev);
+	//netif_stop_queue(dev);
 
 	module_put(THIS_MODULE);
 	return 0;
 }
 
-static void
-swacl_if_set_rx_mode(struct net_device *dev)
-{
-}
-
-static int
-swacl_if_change_mtu(struct net_device *dev, int new_mtu)
-{
-	return -EOPNOTSUPP;
-}
-
-
+#if 0
 static int
 swacl_if_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	return -EOPNOTSUPP;
 }
-
-static struct net_device_stats *
-swacl_if_get_stats(struct net_device *dev)
-{	
-
-	return &g_swacl_priv.stats;
-
-}
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
-static const struct net_device_ops netdev_ops = {
-	.ndo_set_mac_address = eth_mac_addr,
-	.ndo_open = swacl_if_open,
-	.ndo_stop = swacl_if_close,
-	.ndo_set_rx_mode = swacl_if_set_rx_mode,
-	.ndo_get_stats = swacl_if_get_stats,
-	.ndo_change_mtu = swacl_if_change_mtu,
-	.ndo_do_ioctl = swacl_if_ioctl,
-};
 #endif
+
+
+static const struct file_operations swacl_if_fops = {
+	.owner		= THIS_MODULE,
+	.open   	= swacl_if_open,
+	.release	= swacl_if_close,
+};
+
 
 static int
 swacl_if_match_action_rule(struct sk_buff **pskb,struct swacl_if_rule_entry * rule_entry)
@@ -506,6 +472,7 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 								continue;	
 							}
 							iph = (struct iphdr*)skb->data;
+							//dbprintk("v4proto %d\n",iph->protocol);
 							if (rule_entry_pos->v4_protocol != (u8)iph->protocol) {
 								i = SWACL_IF_FILTER_BIT_LEN;
 								continue;							
@@ -641,27 +608,28 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 							//do nothing
 							break;
 						case SWACL_IF_filter_DPORT:
-							if (ntohs(skb->protocol)!=ETH_P_IPV6 || ntohs(skb->protocol)!=ETH_P_IP) {
+							//dbprintk("dport filter \n");	
+							if (ntohs(skb->protocol)!=ETH_P_IPV6 && ntohs(skb->protocol)!=ETH_P_IP) {
 								i = SWACL_IF_FILTER_BIT_LEN;
 								continue;							
 							}
 							
 							if(ntohs(skb->protocol)==ETH_P_IP){
 								iph = (struct iphdr *)skb->data;								
-									
+								//dbprintk("dport filter ip protto(%d)\n",iph->protocol);		
 								if(iph->protocol == IPPROTO_TCP){
 									tcp_hdr=(struct tcphdr *)(skb->data+sizeof(struct iphdr));									
-									dport = tcp_hdr->dest;
+									dport = ntohs(tcp_hdr->dest);
 								}
 								else if(iph->protocol == IPPROTO_UDP){
 									udp_hdr = (struct udphdr *)(skb->data+sizeof(struct iphdr));
-									dport = udp_hdr->dest;
+									dport = ntohs(udp_hdr->dest);
 
 								}else{
 									i = SWACL_IF_FILTER_BIT_LEN;
 									continue;
 								}
-								
+								//dbprintk("dport filter dport=%d \n",dport);	
 								if(rule_entry_pos->filter_flags & SWACL_IF_filter_DPORT_END){
 									if(rule_entry_pos->dport_start > dport || rule_entry_pos->dport_end < dport ){
 										i = SWACL_IF_FILTER_BIT_LEN;
@@ -682,11 +650,11 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 																	
 								if(ip6h->nexthdr == NEXTHDR_TCP){
 									tcp_hdr = (struct tcphdr *)(skb->data+sizeof(struct ipv6hdr));
-									dport = tcp_hdr->dest;
+									dport = ntohs(tcp_hdr->dest);
 								}
 								else if(ip6h->nexthdr ==  NEXTHDR_UDP){
 									udp_hdr = (struct udphdr *)(skb->data+sizeof(struct ipv6hdr));
-									dport = udp_hdr->dest;
+									dport = ntohs(udp_hdr->dest);
 
 								}else{
 									i = SWACL_IF_FILTER_BIT_LEN;
@@ -718,23 +686,28 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 							//do nothing
 							break;
 						case SWACL_IF_filter_SPORT:
-							if (ntohs(skb->protocol)!=ETH_P_IPV6 || ntohs(skb->protocol)!=ETH_P_IP) {
+							//dbprintk("sport filter 11111 0x%x\n",ntohs(skb->protocol));
+							if (ntohs(skb->protocol)!=ETH_P_IPV6 && ntohs(skb->protocol)!=ETH_P_IP) {
 								i = SWACL_IF_FILTER_BIT_LEN;
 								continue;							
 							}
+							
 							if(ntohs(skb->protocol)==ETH_P_IP){
 								iph = (struct iphdr *)skb->data;
-																	
+								//dbprintk("sport filter ip protto(%d)\n",iph->protocol);									
 								if(iph->protocol == IPPROTO_TCP){
 									tcp_hdr=(struct tcphdr *)(skb->data+sizeof(struct iphdr));									
-									sport = tcp_hdr->source;
+									sport = ntohs(tcp_hdr->source);
+									//dbprintk("tcp sport %d\n",sport);
 								}
 								else if(iph->protocol == IPPROTO_UDP){
 									udp_hdr = (struct udphdr *)(skb->data+sizeof(struct iphdr));
-									sport = udp_hdr->source;
+									sport = ntohs(udp_hdr->source);
+									//dbprintk("udp sport %d\n",sport);
 
 								}else{
 									i = SWACL_IF_FILTER_BIT_LEN;
+									dbprintk("no tcp udp 0x%x\n",iph->protocol);
 									continue;
 								}
 								
@@ -757,11 +730,13 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 																	
 								if(ip6h->nexthdr == NEXTHDR_TCP){
 									tcp_hdr = (struct tcphdr *)(skb->data+sizeof(struct ipv6hdr));
-									sport = tcp_hdr->source;
+									sport = ntohs(tcp_hdr->source);
+									//dbprintk("tcp sport %d\n",sport);
 								}
 								else if(ip6h->nexthdr ==  NEXTHDR_UDP){
 									udp_hdr = (struct udphdr *)(skb->data+sizeof(struct ipv6hdr));
-									sport = udp_hdr->source;
+									sport = ntohs(udp_hdr->source);
+									//dbprintk("udp sport %d\n",sport);
 
 								}else{
 									i = SWACL_IF_FILTER_BIT_LEN;
@@ -834,18 +809,16 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 			if(match_act == SWACL_IF_MATCH_ACT_DROP){
 				
 				atomic_long_inc(&skb->dev->rx_dropped);
-				g_swacl_priv.stats.rx_packets++;
-				g_swacl_priv.stats.rx_bytes += skb->len;
-				g_swacl_priv.stats.rx_dropped++;
+				g_swacl_priv.rx_packets++;
+				g_swacl_priv.rx_dropped++;
 				kfree_skb(skb);
 				return RX_HANDLER_CONSUMED;
 					
 			}else if(match_act == SWACL_IF_MATCH_ACT_OK){
 
-				g_swacl_priv.stats.rx_packets++;
-				g_swacl_priv.stats.rx_bytes += skb->len;
-				g_swacl_priv.stats.tx_packets++;
-				g_swacl_priv.stats.tx_bytes += skb->len;
+				g_swacl_priv.rx_packets++;
+				g_swacl_priv.rx_act++;
+				
 				return RX_HANDLER_PASS;		
 			}else{
 				if(g_swacl_priv.debug_rx >= SWACL_IF_DEBUG_LVL_2){
@@ -855,67 +828,32 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 		}
 		idx++;
 	}
+	g_swacl_priv.rx_packets++;
 	return RX_HANDLER_PASS;	
 }
 
-static void *__init
-swacl_if_probe_one(char *if_name, unsigned char *macaddr)
+static int
+swacl_if_probe_one(void)
 {
-	struct net_device *dev;
-
-	// alloc_etherdev ensures aligned and zeroed private structures
-	if ((dev = alloc_etherdev(0)) == NULL) {
-		dbprintk("%s: alloc_etherdev() failed.\n", if_name);
-		return NULL;
+	int error;
+	
+	g_swacl_priv.swacl_dev.minor		= MISC_DYNAMIC_MINOR;
+	g_swacl_priv.swacl_dev.name		= SWACL_IF_NAME;
+	g_swacl_priv.swacl_dev.fops		= &swacl_if_fops;	
+		
+	
+	error = misc_register(&g_swacl_priv.swacl_dev);
+	if (error) {
+		pr_warn("Module registration error (name=%s, major=%d, minor=%d, err=%d)\n",
+			g_swacl_priv.swacl_dev.name,
+			MISC_MAJOR, g_swacl_priv.swacl_dev.minor,
+			error); 	
+		return error;
 	}
-	// assign interface name
-	dev->name[0] = 0;	/* ask system to assign name for this ethernet */
-	strcpy(dev->name, if_name);	// eg: "trex_ifomci%d"
-	dev->name[IFNAMSIZ - 1] = 0;
 
-	// assign mac addr
-	memcpy(dev->dev_addr, macaddr, 6);
-
-	// set entries in the device structure
-	ether_setup(dev);	// general defaults
-	dev->base_addr = 0;
-	dev->irq = 0;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
-	dev->netdev_ops = &netdev_ops;
-#else
-	dev->open = swacl_if_open;
-	dev->stop = swacl_if_close;
-	dev->get_stats = swacl_if_get_stats;
-	dev->do_ioctl = swacl_if_ioctl;
-	dev->change_mtu = swacl_if_change_mtu;
-	dev->set_multicast_list = swacl_if_set_rx_mode;
-#endif
-	dev->watchdog_timeo = TX_TIMEOUT;
-	dev->tx_queue_len = 0;
-	dev->flags |= IFF_NOARP;
-#ifdef NETIF_F_CSUM_MASK
-	dev->features &= ~(NETIF_F_CSUM_MASK);	// linux 4 or later
-#else
-	dev->features &= ~(NETIF_F_ALL_CSUM);
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
-	dev->header_ops = NULL;
-#else
-	dev->hard_header_cache = NULL;
-#endif
-
-	// add interface to linux
-	if (register_netdev(dev)) {
-		dbprintk("%s: register_netdev() failed!\n", if_name);
-		kfree(dev);
-		return NULL;
-	}
-	// disable hw port
-	//swacl_if_stop_rxtx(dev);
-
-	// printk("%s: registered_netdev() as %s.\n", TREX_IFOMCI_NAME, dev->name);
-	return dev;
+	pr_info("swacl device registered (name=%s, major=%d, minor=%d)\n",
+		g_swacl_priv.swacl_dev.name, MISC_MAJOR, g_swacl_priv.swacl_dev.minor);
+	return 0;
 }
 
 static int
@@ -1279,7 +1217,10 @@ swacl_if_proc_debug_read(struct seq_file *seq, void *v)
 {
 	seq_printf(seq, "debug_rx=(%d)\n",g_swacl_priv.debug_rx);	
 	seq_printf(seq, "debug_filter=(%d)\n",g_swacl_priv.debug_filter);	
-	seq_printf(seq, "debug_cmp=(%d)\n",g_swacl_priv.debug_cmp);	
+	seq_printf(seq, "debug_cmp=(%d)\n",g_swacl_priv.debug_cmp);
+	seq_printf(seq, "rx_packets=(%u)\n",g_swacl_priv.rx_packets);
+	seq_printf(seq, "rx_dropped=(%u)\n",g_swacl_priv.rx_dropped);
+	seq_printf(seq, "rx_act=(%u)\n",g_swacl_priv.rx_act);
 	return 0;
 }
 
@@ -1442,24 +1383,19 @@ swacl_if_cleanup(void)
 	RCU_INIT_POINTER(swacl_net_recv, NULL);
 	swacl_if_del_rule_entry_all();
 	swacl_if_proc_cleanup();
-	mutex_destroy(&g_swacl_priv.swacl_mutex);	
+	mutex_destroy(&g_swacl_priv.swacl_mutex);
+	misc_deregister(&g_swacl_priv.swacl_dev);
 	printk("unload %s module\n", SWACL_IF_NAME);
 }
 
 static int __init
 swacl_if_init(void)
 {
-	unsigned char macaddr_default[6] = { 0 };
+	
 	memset(&g_swacl_priv,0x0,sizeof(struct swacl_if_priv));
 
-	// init macaddr_default
-	macaddr_default[1] = 0x95;	// 03 c1 -> omci
-	macaddr_default[2] = 0x74;
-	// register trex_ifomci/iftrap interface
-	get_random_bytes(&macaddr_default[3], 3);     // randomize lower 3 bytes of macaddr
-	g_swacl_priv.swacl_dev = swacl_if_probe_one(SWACL_IF_NAME, macaddr_default);
-	if (g_swacl_priv.swacl_dev == NULL) {
-		return -ENODEV;
+	if(swacl_if_probe_one()!=0){	
+		return -ENODEV;	
 	}
 	INIT_LIST_HEAD(&g_swacl_priv.swacl_list);
 	mutex_init(&g_swacl_priv.swacl_mutex);	
