@@ -1301,12 +1301,12 @@ static struct file_operations
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
 
-static struct file_operations
+static struct proc_ops
  swacl_proc_debug_fop = {
 	.proc_open = swacl_if_proc_debug_open,
 	.proc_write = swacl_if_proc_debug_write,
 	.proc_read = seq_read,
-	.proc_llseek = seq_lseek,
+	.proc_lseek = seq_lseek,
 	.proc_release = single_release,
 };
 #else
