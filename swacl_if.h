@@ -12,10 +12,10 @@
 #define SWACL_IF_NETDEV_TX_DROP		1	// skb consumed by callee, but dropped
 
 #define OUI_LEN                         3
-#define SWCAL_IF_PARSE_PREFIX           0xff 
+#define SWCAL_IF_PARSE_PREFIX           0xff
 #define SWCAL_IF_PARSE_4PREFIX          0xffffffff
 
-#define SWACL_IF_DEBUG_LVL_1            1 
+#define SWACL_IF_DEBUG_LVL_1            1
 #define SWACL_IF_DEBUG_LVL_2            2
 
 
@@ -41,14 +41,14 @@
 #define SWACL_IF_MATCH_FILTER_OK                 1
 
 #define SWACL_STRING_BUFF_LEN                    1344
-#define SWACL_STRING_PARAM_LEN			 256	
+#define SWACL_STRING_PARAM_LEN			 256
 #define SWACL_STRING_PARAM_ARRAY_LEN		 48
 #define SWACL_STRING_DBG_PARAM_ARRAY_LEN	 12
 
 
 enum swacl_filter_field_e {
-	SWACL_IF_filter_NONE = 0,	
-	SWACL_IF_filter_OUI             = 0x1,	
+	SWACL_IF_filter_NONE = 0,
+	SWACL_IF_filter_OUI             = 0x1,
 	SWACL_IF_filter_ETHERTYPE       = 0x2,
 	SWACL_IF_filter_DMAC            = 0x4,
 	SWACL_IF_filter_SMAC            = 0x8,
@@ -70,12 +70,12 @@ enum swacl_filter_field_e {
 	SWACL_IF_filter_DPORT_END       = 0x80000,
 	SWACL_IF_filter_SPORT_END       = 0x100000,
 	SWACL_IF_filter_DMAC_PRE        = 0x200000,
-	SWACL_IF_filter_SMAC_PRE        = 0x400000,	
+	SWACL_IF_filter_SMAC_PRE        = 0x400000,
 };
-	
+
 enum swacl_action_e {
-	SWACL_IF_ACTION_NONE            = 0,	
-	SWACL_IF_ACTION_PERMIN          = 0x1,	
+	SWACL_IF_ACTION_NONE            = 0,
+	SWACL_IF_ACTION_PERMIN          = 0x1,
 	SWACL_IF_ACTION_DROP		= 0x2,
 	SWACL_IF_ACTION_REDIRECT	= 0x4,
 	SWACL_IF_ACTION_VLANTAG_CHG     = 0x8,
@@ -88,8 +88,8 @@ enum swacl_action_e {
 	SWACL_IF_ACTION_RULE_DEL        = 0x40000000,
 	SWACL_IF_ACTION_RULE_COMMIT     = 0x80000000,
 };
-	
-enum swacl_if_rule_act_mapping_e{
+
+enum swacl_if_rule_act_mapping_e {
 	SWACL_IF_ACTION_RULE_ADD_IDX=0,
 	SWACL_IF_ACTION_RULE_DEL_IDX,
 	SWACL_IF_ACTION_RULE_CLEAR_IDX,
@@ -103,7 +103,7 @@ enum swacl_if_rule_act_mapping_e{
 	SWACL_IF_ACTION_RULE_DEL_ALL_IDX,
 	SWACL_IF_ACTION_RULE_REMOV_TAG_IDX
 };
-enum swacl_if_rule_mapping_e{	
+enum swacl_if_rule_mapping_e {
 	SWACL_IF_filter_OUI_IDX = 0,
 	SWACL_IF_filter_ETHERTYPE_IDX,
 	SWACL_IF_filter_DMAC_IDX,
@@ -126,7 +126,7 @@ enum swacl_if_rule_mapping_e{
 	SWACL_IF_filter_SPORT_IDX,
 	SWACL_IF_filter_SPORT_END_IDX,
 	SWACL_IF_filter_VLAN_IDX,
-	SWACL_IF_filter_VLAN_PRI_IDX,	
+	SWACL_IF_filter_VLAN_PRI_IDX,
 };
 
 struct swacl_if_rule_entry {
@@ -134,31 +134,31 @@ struct swacl_if_rule_entry {
 	unsigned short     priority;
 	unsigned int       filter_flags;
 	unsigned int       action_flags;
-        unsigned char      oui[OUI_LEN];
-        unsigned short     ethertype;
-        unsigned char      dmac[ETH_ALEN];
-        unsigned short     dmac_prefix;
-        unsigned char      smac[ETH_ALEN];
-        unsigned short     smac_prefix;
-        char               bind_ifname[IFNAMSIZ];
-        unsigned char      v4_protocol;
-        unsigned char      v6_next_header;
-        unsigned int       dip;
-        unsigned short     dip_prefix;
-        unsigned int       sip;
-        unsigned short     sip_prefix;
-        struct in6_addr    v6dip;
-        unsigned short     v6dip_prefix;
-        struct in6_addr    v6sip;
-        unsigned short     v6sip_prefix;
-        unsigned short     dport_start;
-        unsigned short     dport_end;
-        unsigned short     sport_start;
-        unsigned short     sport_end;
-        unsigned short     vlantag_id;
-        short              vlan_tag_pbit;
-        unsigned short     vlan_mark;
-        short              pbit_mark;
+	unsigned char      oui[OUI_LEN];
+	unsigned short     ethertype;
+	unsigned char      dmac[ETH_ALEN];
+	unsigned short     dmac_prefix;
+	unsigned char      smac[ETH_ALEN];
+	unsigned short     smac_prefix;
+	char               bind_ifname[IFNAMSIZ];
+	unsigned char      v4_protocol;
+	unsigned char      v6_next_header;
+	unsigned int       dip;
+	unsigned short     dip_prefix;
+	unsigned int       sip;
+	unsigned short     sip_prefix;
+	struct in6_addr    v6dip;
+	unsigned short     v6dip_prefix;
+	struct in6_addr    v6sip;
+	unsigned short     v6sip_prefix;
+	unsigned short     dport_start;
+	unsigned short     dport_end;
+	unsigned short     sport_start;
+	unsigned short     sport_end;
+	unsigned short     vlantag_id;
+	short              vlan_tag_pbit;
+	unsigned short     vlan_mark;
+	short              pbit_mark;
 	unsigned int       hit_counter;
 	struct list_head   swacl_entry;
 
@@ -175,7 +175,7 @@ struct swacl_if_priv {
 	unsigned int              rx_act;
 	struct mutex		  swacl_mutex;
 	struct list_head	  swacl_list;
-	
+
 };
 static inline char *
 purename(char *name)
