@@ -36,6 +36,7 @@
 #define SWACL_IF_MATCH_ACT_DROP                  0
 #define SWACL_IF_MATCH_ACT_OK                    1
 
+
 #define SWACL_IF_MATCH_NO_FILTER                 0
 #define SWACL_IF_MATCH_FILTER_OK                 1
 
@@ -81,6 +82,7 @@ enum swacl_action_e {
 	SWACL_IF_ACTION_PBIT_CHG        = 0x10,
 	SWACL_IF_ACTION_RULE_PRIORITY   = 0x20,
 	SWACL_IF_ACTION_RULE_DEL_ALL    = 0x40,
+	SWACL_IF_ACTION_RULE_VLAN_REMOVE= 0x80,
 	SWACL_IF_ACTION_RULE_CLEAR      = 0x10000000,
 	SWACL_IF_ACTION_RULE_ADD        = 0x20000000,
 	SWACL_IF_ACTION_RULE_DEL        = 0x40000000,
@@ -98,7 +100,8 @@ enum swacl_if_rule_act_mapping_e{
 	SWACL_IF_ACTION_REDIRECT_IDX,
 	SWACL_IF_ACTION_VLANTAG_CHG_IDX,
 	SWACL_IF_ACTION_PBIT_CHG_IDX,
-	SWACL_IF_ACTION_RULE_DEL_ALL_IDX
+	SWACL_IF_ACTION_RULE_DEL_ALL_IDX,
+	SWACL_IF_ACTION_RULE_REMOV_TAG_IDX
 };
 enum swacl_if_rule_mapping_e{	
 	SWACL_IF_filter_OUI_IDX = 0,
@@ -155,7 +158,8 @@ struct swacl_if_rule_entry {
         unsigned short     vlantag_id;
         short              vlan_tag_pbit;
         unsigned short     vlan_mark;
-        short              pbit_mark;	
+        short              pbit_mark;
+	unsigned int       hit_counter;
 	struct list_head   swacl_entry;
 
 };

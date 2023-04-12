@@ -101,6 +101,7 @@ struct swacl_rule_name_map_id g_swacl_act_rule_mapping[] = {
 	{SWACL_IF_ACTION_VLANTAG_CHG_IDX  ,"vlanid_mark"            ,SWACL_IF_ACTION_VLANTAG_CHG,1,"change or vlanid"              ,swacl_if_parse_act_vlan             ,swacl_if_act_vlan_to_str},
 	{SWACL_IF_ACTION_PBIT_CHG_IDX     ,"pbit_mark"              ,SWACL_IF_ACTION_PBIT_CHG,1,"chnage or add pbit"               ,swacl_if_parse_act_pbit             ,swacl_if_act_pbit_to_str},
 	{SWACL_IF_ACTION_RULE_DEL_ALL_IDX ,"rule_del_all"           ,SWACL_IF_ACTION_RULE_DEL_ALL,1,"rule delete all"              ,NULL,NULL},
+	{SWACL_IF_ACTION_RULE_REMOV_TAG_IDX ,"act_vlan_remove"      ,SWACL_IF_ACTION_RULE_VLAN_REMOVE,1,"vlan remove"              ,NULL,NULL},
 
 };
 
@@ -278,7 +279,7 @@ static int swacl_if_commit_global_rule_entry(struct swacl_if_rule_entry * rule_e
 	if((rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE) == SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE)
 		return SWACL_IF_ERROR_PERMIT_CONFLICT;
 
-	if((rule_entry->action_flags & SWACL_IF_ACTION_PERMIN) &&  !(rule_entry->action_flags&SWACL_IF_ACTION_VLANTAG_CHG))
+	if((rule_entry->action_flags & SWACL_IF_ACTION_PERMIN) &&  !(rule_entry->action_flags&SWACL_IF_ACTION_VLANTAG_CHG) &&  !(rule_entry->action_flags&SWACL_IF_ACTION_RULE_VLAN_REMOVE))
 		return SWACL_IF_ERROR_PERMIT_CONFLICT1;
 	
 	if(!(rule_entry->filter_flags & SWACL_IF_filter_IFNAME))
@@ -359,10 +360,22 @@ swacl_if_match_action_rule(struct sk_buff **pskb,struct swacl_if_rule_entry * ru
 		vlan_tci = (rule_entry->vlan_mark) | (vlan_pbit << VLAN_PRIO_SHIFT);
 
 		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vlan_tci);
+		return SWACL_IF_MATCH_ACT_OK;
+		
+	}
+
+	if(rule_entry->action_flags&SWACL_IF_ACTION_RULE_VLAN_REMOVE){
+		
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+		__vlan_hwaccel_clear_tag(skb);
+#else
+		skb->vlan_tci = 0;
+#endif
+		return SWACL_IF_MATCH_ACT_OK;
 		
 	}
 	
-	return SWACL_IF_MATCH_ACT_OK;
+	return SWACL_IF_ERROR_MATCH_ACT;
 }
 
 int
@@ -811,6 +824,7 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 				atomic_long_inc(&skb->dev->rx_dropped);
 				g_swacl_priv.rx_packets++;
 				g_swacl_priv.rx_dropped++;
+				rule_entry_pos->hit_counter++;
 				kfree_skb(skb);
 				return RX_HANDLER_CONSUMED;
 					
@@ -818,7 +832,7 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 
 				g_swacl_priv.rx_packets++;
 				g_swacl_priv.rx_act++;
-				
+				rule_entry_pos->hit_counter++;
 				return RX_HANDLER_PASS;		
 			}else{
 				if(g_swacl_priv.debug_rx >= SWACL_IF_DEBUG_LVL_2){
@@ -919,6 +933,10 @@ swacl_if_cmd_process(char *command)
 						return 0;
 					case SWACL_IF_ACTION_DROP:
 						swacl_rule_entry_p->action_flags|=g_swacl_act_rule_mapping[j].field_flags;
+						break;
+					case SWACL_IF_ACTION_RULE_VLAN_REMOVE:
+						swacl_rule_entry_p->action_flags|=g_swacl_act_rule_mapping[j].field_flags;
+						break;
 						
 #if 0						
 					case SWACL_IF_ACTION_RULE_COMMIT:
@@ -1160,6 +1178,7 @@ swacl_if_proc_entry_read(struct seq_file *seq, void *v)
 	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry){		
 
 		seq_printf(seq, "swacl rule entry (%d)\n",pos);	
+		seq_printf(seq, "hit: %u\n",rule_entry_pos->hit_counter);
 		seq_printf(seq, "filter flags(%4x)\n",rule_entry_pos->filter_flags);	
 		seq_printf(seq, "action flags(%4x)\n",rule_entry_pos->action_flags);	
 		for(i =0;i<SWACL_IF_FILTER_BIT_LEN;i++){
