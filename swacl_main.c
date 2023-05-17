@@ -156,7 +156,7 @@ swacl_if_add_rule_entry(struct swacl_if_rule_entry * rule_entry)
 		}
 		i++;
 	}
-	
+
 	rcu_read_unlock();
 
 	mutex_lock(&g_swacl_priv.swacl_mutex);
@@ -345,7 +345,7 @@ swacl_if_match_action_rule(struct sk_buff **pskb,struct swacl_if_rule_entry * ru
 	struct net_device *lowdev;
 	int i = 0;
 	int ret = SWACL_IF_ERROR_MATCH_ACT;
-	
+
 	skb= *pskb;
 	if(rule_entry == NULL ||skb == NULL) {
 		return SWACL_IF_ERROR_MATCH_ACT;
@@ -382,12 +382,12 @@ swacl_if_match_action_rule(struct sk_buff **pskb,struct swacl_if_rule_entry * ru
 
 	if(rule_entry->action_flags&SWACL_IF_ACTION_REDIRECT) {
 
-		for( i = 0 ; i<SWACL_IF_NAME_MAX_NUM ; i++){
+		for( i = 0 ; i<SWACL_IF_NAME_MAX_NUM ; i++) {
 
-			
-			if(strlen(rule_entry->redirect_ifname[i]) !=0 ){
+
+			if(strlen(rule_entry->redirect_ifname[i]) !=0 ) {
 				skb2 = skb_copy(skb, GFP_ATOMIC);
-				if(skb2 != NULL){					
+				if(skb2 != NULL) {
 					skb_push(skb2, ETH_HLEN);
 					if ((lowdev = dev_get_byname(rule_entry->redirect_ifname[i])) == NULL) {
 						dbprintk("redirect xmit: no netdev exist(%s)\n",rule_entry->redirect_ifname[i]);
@@ -415,10 +415,10 @@ swacl_if_match_action_rule(struct sk_buff **pskb,struct swacl_if_rule_entry * ru
 #endif
 					}
 					skb2->dev = lowdev;
-					dev_queue_xmit(skb2);				
+					dev_queue_xmit(skb2);
 					dev_put(lowdev);
 				}
-			}	
+			}
 
 		}
 
@@ -457,16 +457,16 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 
 		match_filter = 0;
 		match_if = 0;
-		
-		for(if_num = 0 ; if_num < SWACL_IF_NAME_MAX_NUM ; if_num++){
+
+		for(if_num = 0 ; if_num < SWACL_IF_NAME_MAX_NUM ; if_num++) {
 			if(strlen (rule_entry_pos->bind_ifname[if_num]) == 0)
 				continue;
-			if(strcmp(skb->dev->name,rule_entry_pos->bind_ifname[if_num]) == 0){
+			if(strcmp(skb->dev->name,rule_entry_pos->bind_ifname[if_num]) == 0) {
 				match_if = 1;
 				break;
-			}	
+			}
 		}
-		
+
 		if(match_if) {
 			match_filter |= SWACL_IF_filter_IFNAME;
 
@@ -968,7 +968,7 @@ swacl_if_cmd_process(char *command)
 				case SWACL_IF_ACTION_RULE_PRIORITY:
 				case SWACL_IF_ACTION_VLANTAG_CHG:
 				case SWACL_IF_ACTION_PBIT_CHG:
-				case SWACL_IF_ACTION_REDIRECT:	
+				case SWACL_IF_ACTION_REDIRECT:
 					if(g_swacl_act_rule_mapping[j].parse_filter_func ==NULL)
 						continue;
 					if( i+1 >= argc ) {
@@ -1106,7 +1106,7 @@ err_return:
 
 	return 0;
 }
-static int 
+static int
 swacl_if_proc_entry_hit_clean(int clean_entry)
 {
 	int pos=0;
@@ -1117,13 +1117,13 @@ swacl_if_proc_entry_hit_clean(int clean_entry)
 
 		if(clean_entry == -1)
 			rule_entry_pos->hit_counter = 0;
-		else{
+		else {
 			if(clean_entry == pos)
 				rule_entry_pos->hit_counter = 0;
-		}		
+		}
 		pos++;
 	}
-	rcu_read_unlock();	
+	rcu_read_unlock();
 	return 0;
 }
 
@@ -1181,7 +1181,7 @@ swacl_if_proc_debug_write(struct file *file, const char *buffer, size_t count, l
 			}
 			value = simple_strtoul(param_str,NULL,10);
 			g_swacl_priv.debug_cmp = value;
-		}else if(strcmp(argv[i],"clean_hit") == 0) {
+		} else if(strcmp(argv[i],"clean_hit") == 0) {
 			if(i+1 >= argc) {
 				swacl_if_proc_entry_hit_clean(-1);
 				goto debug_proc_done;
