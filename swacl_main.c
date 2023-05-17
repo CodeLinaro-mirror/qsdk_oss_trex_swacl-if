@@ -97,7 +97,7 @@ struct swacl_rule_name_map_id g_swacl_act_rule_mapping[] = {
 	{SWACL_IF_ACTION_RULE_PRIORITY_IDX,"rule_pri",SWACL_IF_ACTION_RULE_PRIORITY,1,"rule ptiority (0 is highest)",swacl_if_parse_rule_priority,swacl_if_rule_priority_to_str},
 	{SWACL_IF_ACTION_PERMIN_IDX,"act_permit",SWACL_IF_ACTION_PERMIN,1,"permit rule action",NULL,NULL},
 	{SWACL_IF_ACTION_DROP_IDX,"act_drop",SWACL_IF_ACTION_DROP,1,"drop rule action",NULL,NULL},
-	{SWACL_IF_ACTION_REDIRECT_IDX,"act_redirect",SWACL_IF_ACTION_REDIRECT,0,"drop rule action",NULL,NULL},
+	{SWACL_IF_ACTION_REDIRECT_IDX,"act_redirect",SWACL_IF_ACTION_REDIRECT,0,"redirect action",swacl_if_parse_act_redirect,swacl_if_act_redirect_to_str},
 	{SWACL_IF_ACTION_VLANTAG_CHG_IDX,"vlanid_mark",SWACL_IF_ACTION_VLANTAG_CHG,1,"change or vlanid",swacl_if_parse_act_vlan,swacl_if_act_vlan_to_str},
 	{SWACL_IF_ACTION_PBIT_CHG_IDX,"pbit_mark",SWACL_IF_ACTION_PBIT_CHG,1,"chnage or add pbit",swacl_if_parse_act_pbit,swacl_if_act_pbit_to_str},
 	{SWACL_IF_ACTION_RULE_DEL_ALL_IDX,"rule_del_all",SWACL_IF_ACTION_RULE_DEL_ALL,1,"rule delete all",NULL,NULL},
@@ -144,17 +144,19 @@ static int
 swacl_if_add_rule_entry(struct swacl_if_rule_entry * rule_entry)
 {
 	struct swacl_if_rule_entry * rule_entry_pos,* rule_entry_nxt;
-
+	int i=0;
 	rcu_read_lock();
 	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry) {
 
 
 		if(swacl_if_filter_cmp(rule_entry,rule_entry_pos) == SWACL_IF_MATCH_FILTER_OK ) {
-			dbprintk("%s: rule exit (0x%4.4x)\n", rule_entry->bind_ifname,rule_entry->filter_flags);
+			dbprintk("match rule(%d) exit (0x%4.4x)\n", i,rule_entry->filter_flags);
 			rcu_read_unlock();
 			return -1;
 		}
+		i++;
 	}
+	
 	rcu_read_unlock();
 
 	mutex_lock(&g_swacl_priv.swacl_mutex);
@@ -338,9 +340,12 @@ static const struct file_operations swacl_if_fops = {
 static int
 swacl_if_match_action_rule(struct sk_buff **pskb,struct swacl_if_rule_entry * rule_entry)
 {
-	struct sk_buff *skb;
+	struct sk_buff *skb,*skb2;
 	u16 vlan_tci = 0,vlan_pbit=0;
-
+	struct net_device *lowdev;
+	int i = 0;
+	int ret = SWACL_IF_ERROR_MATCH_ACT;
+	
 	skb= *pskb;
 	if(rule_entry == NULL ||skb == NULL) {
 		return SWACL_IF_ERROR_MATCH_ACT;
@@ -360,7 +365,7 @@ swacl_if_match_action_rule(struct sk_buff **pskb,struct swacl_if_rule_entry * ru
 		vlan_tci = (rule_entry->vlan_mark) | (vlan_pbit << VLAN_PRIO_SHIFT);
 
 		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vlan_tci);
-		return SWACL_IF_MATCH_ACT_OK;
+		ret = SWACL_IF_MATCH_ACT_OK;
 
 	}
 
@@ -371,18 +376,63 @@ swacl_if_match_action_rule(struct sk_buff **pskb,struct swacl_if_rule_entry * ru
 #else
 		skb->vlan_tci = 0;
 #endif
-		return SWACL_IF_MATCH_ACT_OK;
+		ret = SWACL_IF_MATCH_ACT_OK;
 
 	}
 
-	return SWACL_IF_ERROR_MATCH_ACT;
+	if(rule_entry->action_flags&SWACL_IF_ACTION_REDIRECT) {
+
+		for( i = 0 ; i<SWACL_IF_NAME_MAX_NUM ; i++){
+
+			
+			if(strlen(rule_entry->redirect_ifname[i]) !=0 ){
+				skb2 = skb_copy(skb, GFP_ATOMIC);
+				if(skb2 != NULL){					
+					skb_push(skb2, ETH_HLEN);
+					if ((lowdev = dev_get_byname(rule_entry->redirect_ifname[i])) == NULL) {
+						dbprintk("redirect xmit: no netdev exist(%s)\n",rule_entry->redirect_ifname[i]);
+						return SWACL_IF_ERROR_MATCH_ACT;
+					}
+
+					if(rule_entry->action_flags&SWACL_IF_ACTION_VLANTAG_CHG) {
+
+						if(rule_entry->action_flags&SWACL_IF_ACTION_PBIT_CHG)
+							vlan_pbit = rule_entry->pbit_mark;
+						else
+							vlan_pbit = 0;
+
+						vlan_tci = (rule_entry->vlan_mark) | (vlan_pbit << VLAN_PRIO_SHIFT);
+
+						__vlan_hwaccel_put_tag(skb2, htons(ETH_P_8021Q), vlan_tci);
+					}
+
+					if(rule_entry->action_flags&SWACL_IF_ACTION_RULE_VLAN_REMOVE) {
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+						__vlan_hwaccel_clear_tag(skb2);
+#else
+						skb2->vlan_tci = 0;
+#endif
+					}
+					skb2->dev = lowdev;
+					dev_queue_xmit(skb2);				
+					dev_put(lowdev);
+				}
+			}	
+
+		}
+
+		ret = SWACL_IF_MATCH_ACT_REDIRECT;
+
+	}
+	return ret;
 }
 
 int
 swacl_if_handle_frame(struct sk_buff **pskb)
 {
 	struct swacl_if_rule_entry * rule_entry_pos;
-	int i,j,cmp_b=0,match_act=0,no_match=0,idx=0;
+	int i,j,cmp_b=0,match_act=0,no_match=0,idx=0,if_num=0,match_if;
 	struct sk_buff *skb;
 	unsigned int match_filter=0,cmp_prex=0;
 	struct iphdr *iph;
@@ -406,7 +456,18 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry) {
 
 		match_filter = 0;
-		if(strcmp(skb->dev->name,rule_entry_pos->bind_ifname) == 0) {
+		match_if = 0;
+		
+		for(if_num = 0 ; if_num < SWACL_IF_NAME_MAX_NUM ; if_num++){
+			if(strlen (rule_entry_pos->bind_ifname[if_num]) == 0)
+				continue;
+			if(strcmp(skb->dev->name,rule_entry_pos->bind_ifname[if_num]) == 0){
+				match_if = 1;
+				break;
+			}	
+		}
+		
+		if(match_if) {
 			match_filter |= SWACL_IF_filter_IFNAME;
 
 			for(i =0; i<SWACL_IF_FILTER_BIT_LEN; i++) {
@@ -813,7 +874,7 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 				dbprintk("idx[%d]%s:match filter 0x%x-0x%x,act=%d\n",idx,skb->dev->name,match_filter
 				         ,rule_entry_pos->filter_flags,match_act);
 			}
-			if(match_act == SWACL_IF_MATCH_ACT_DROP) {
+			if(match_act == SWACL_IF_MATCH_ACT_DROP || match_act == SWACL_IF_MATCH_ACT_REDIRECT) {
 
 				atomic_long_inc(&skb->dev->rx_dropped);
 				g_swacl_priv.rx_packets++;
@@ -907,6 +968,7 @@ swacl_if_cmd_process(char *command)
 				case SWACL_IF_ACTION_RULE_PRIORITY:
 				case SWACL_IF_ACTION_VLANTAG_CHG:
 				case SWACL_IF_ACTION_PBIT_CHG:
+				case SWACL_IF_ACTION_REDIRECT:	
 					if(g_swacl_act_rule_mapping[j].parse_filter_func ==NULL)
 						continue;
 					if( i+1 >= argc ) {
@@ -1044,6 +1106,27 @@ err_return:
 
 	return 0;
 }
+static int 
+swacl_if_proc_entry_hit_clean(int clean_entry)
+{
+	int pos=0;
+	struct swacl_if_rule_entry * rule_entry_pos;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(rule_entry_pos,&g_swacl_priv.swacl_list,swacl_entry) {
+
+		if(clean_entry == -1)
+			rule_entry_pos->hit_counter = 0;
+		else{
+			if(clean_entry == pos)
+				rule_entry_pos->hit_counter = 0;
+		}		
+		pos++;
+	}
+	rcu_read_unlock();	
+	return 0;
+}
+
 static ssize_t
 swacl_if_proc_debug_write(struct file *file, const char *buffer, size_t count, loff_t * data)
 {
@@ -1098,6 +1181,18 @@ swacl_if_proc_debug_write(struct file *file, const char *buffer, size_t count, l
 			}
 			value = simple_strtoul(param_str,NULL,10);
 			g_swacl_priv.debug_cmp = value;
+		}else if(strcmp(argv[i],"clean_hit") == 0) {
+			if(i+1 >= argc) {
+				swacl_if_proc_entry_hit_clean(-1);
+				goto debug_proc_done;
+			}
+			param_str = swacl_util_trim(argv[i+1]);
+			if(!swacl_util_string_is_digit(param_str)) {
+				dbprintk("debug_cmp isn't digit\n");
+				goto debug_proc_done;
+			}
+			value = simple_strtoul(param_str,NULL,10);
+			swacl_if_proc_entry_hit_clean(value);
 		}
 
 	}
@@ -1157,7 +1252,6 @@ swacl_if_proc_cmd_read(struct seq_file *seq, void *v)
 	return 0;
 
 }
-
 static int
 swacl_if_proc_entry_read(struct seq_file *seq, void *v)
 {
@@ -1231,6 +1325,7 @@ swacl_if_proc_debug_read(struct seq_file *seq, void *v)
 	seq_printf(seq, "rx_packets=(%u)\n",g_swacl_priv.rx_packets);
 	seq_printf(seq, "rx_dropped=(%u)\n",g_swacl_priv.rx_dropped);
 	seq_printf(seq, "rx_act=(%u)\n",g_swacl_priv.rx_act);
+	seq_printf(seq, "clean_hit (entry)\n");
 	return 0;
 }
 

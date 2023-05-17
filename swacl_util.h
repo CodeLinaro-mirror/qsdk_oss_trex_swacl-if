@@ -62,6 +62,8 @@ int
 swacl_if_parse_act_pbit(char * param_str,struct swacl_if_rule_entry * rule_entry);
 int
 swacl_if_parse_rule_priority(char * param_str,struct swacl_if_rule_entry * rule_entry);
+int
+swacl_if_parse_act_redirect(char * param_str,struct swacl_if_rule_entry * rule_entry);
 
 
 ////////////////////////////////
@@ -120,5 +122,7 @@ int
 swacl_if_rule_priority_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry);
 unsigned int
 swacl_if_filter_cmp(struct swacl_if_rule_entry * src_entry,struct swacl_if_rule_entry * dst_entry);
+int
+swacl_if_act_redirect_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry);
 
 #endif

@@ -18,6 +18,7 @@
 #define SWACL_IF_DEBUG_LVL_1            1
 #define SWACL_IF_DEBUG_LVL_2            2
 
+#define SWACL_IF_NAME_MAX_NUM           5
 
 #define SWACL_IF_SUCCESS                         0
 #define SWACL_IF_ERROR                          -1
@@ -35,6 +36,7 @@
 
 #define SWACL_IF_MATCH_ACT_DROP                  0
 #define SWACL_IF_MATCH_ACT_OK                    1
+#define SWACL_IF_MATCH_ACT_REDIRECT              2
 
 
 #define SWACL_IF_MATCH_NO_FILTER                 0
@@ -140,7 +142,8 @@ struct swacl_if_rule_entry {
 	unsigned short     dmac_prefix;
 	unsigned char      smac[ETH_ALEN];
 	unsigned short     smac_prefix;
-	char               bind_ifname[IFNAMSIZ];
+	char               bind_ifname[SWACL_IF_NAME_MAX_NUM][IFNAMSIZ];
+	char               redirect_ifname[SWACL_IF_NAME_MAX_NUM][IFNAMSIZ];
 	unsigned char      v4_protocol;
 	unsigned char      v6_next_header;
 	unsigned int       dip;

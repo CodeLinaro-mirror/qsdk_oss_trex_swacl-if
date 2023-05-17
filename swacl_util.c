@@ -137,6 +137,12 @@ swacl_if_parse_OUI(char * param_str,struct swacl_if_rule_entry * rule_entry)
 		dbprintk("OUI: null string\n");
 		return SWACL_IF_ERROR;
 	}
+
+	if((p_str = strstr(buf, s1)) == NULL) {
+		dbprintk("OUI: format error string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	while ((p_str = strsep(&buf, s1)) != NULL) {
 
 		p_str = swacl_util_trim(p_str);
@@ -227,6 +233,12 @@ swacl_if_parse_dmac(char * param_str,struct swacl_if_rule_entry * rule_entry)
 		dbprintk("dmac: null string\n");
 		return SWACL_IF_ERROR;
 	}
+
+	if((p_str = strstr(buf, s1)) == NULL) {
+		dbprintk("dmac: format error string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	while ((p_str = strsep(&buf, s1)) != NULL) {
 
 		p_str = swacl_util_trim(p_str);
@@ -314,6 +326,11 @@ swacl_if_parse_smac(char * param_str,struct swacl_if_rule_entry * rule_entry)
 		return SWACL_IF_ERROR;
 	}
 
+	if((p_str = strstr(buf, s1)) == NULL) {
+		dbprintk("smac: format error string\n");
+		return SWACL_IF_ERROR;
+	}
+	
 	while ((p_str = strsep(&buf, s1)) != NULL) {
 
 		p_str = swacl_util_trim(p_str);
@@ -385,38 +402,90 @@ swacl_if_parse_smac_prefix(char * param_str,struct swacl_if_rule_entry * rule_en
 int
 swacl_if_ifname_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
-	sprintf(param_str,"%s",rule_entry->bind_ifname);
+	
+	int num;
+	for ( num = 0 ; num < SWACL_IF_NAME_MAX_NUM ; num ++){
+		
+		if(strlen (rule_entry->bind_ifname[num]) != 0){
+			if(num == 0)
+				sprintf(param_str,"%s",rule_entry->bind_ifname[num]);
+			else{
+				strcat(param_str,",");
+				strcat(param_str,rule_entry->bind_ifname[num]);
+			}
+		}
+
+	}
 	return 0;
+	
 }
 
 int
 swacl_if_parse_ifname(char * param_str,struct swacl_if_rule_entry * rule_entry)
 {
+	char s1[2]= {',','\0'};
 	char * p_str=NULL;
 	struct net_device *lowdev;
-	unsigned int slen=0;
+	int pos = 0,slen = 0;
 	char * buf = param_str;
-
+	
 	if(strlen(param_str)==0) {
 		dbprintk("ifname: null string\n");
 		return SWACL_IF_ERROR;
 	}
+	
+	memset(rule_entry->bind_ifname,0x0,sizeof(rule_entry->bind_ifname));
 
-	p_str = swacl_util_trim(buf);
+	if((p_str = strstr(buf, s1)) == NULL) {
 
-	if((slen = strlen(p_str)) > IFNAMSIZ) {
-		dbprintk("ifname: name too long error\n");
-		return SWACL_IF_ERROR;
+		if(strlen(param_str)==0) {
+			dbprintk("ifname: null string\n");
+			return SWACL_IF_ERROR;
+		}
+
+		p_str = swacl_util_trim(buf);
+
+		if((slen = strlen(p_str)) > IFNAMSIZ) {
+			dbprintk("ifname: name too long error\n");
+			return SWACL_IF_ERROR;
+		}
+		if ((lowdev = dev_get_byname(p_str)) == NULL) {
+			dbprintk("ifname: no netdev exist(%s)\n",p_str);
+			return SWACL_IF_ERROR;
+		}
+		dev_put(lowdev);
+		strncpy(rule_entry->bind_ifname[0],p_str,slen);
+		
+	} else{
+		while ((p_str = strsep(&buf, s1)) != NULL) {
+
+			p_str = swacl_util_trim(p_str);
+
+			if((slen = strlen(p_str)) > IFNAMSIZ) {
+				dbprintk("ifname: name too long error\n");
+				return SWACL_IF_ERROR;
+			}
+
+			if(slen <=0) {
+				dbprintk("ifname: name is none error\n");
+				return SWACL_IF_ERROR;
+			}
+			if ((lowdev = dev_get_byname(p_str)) == NULL) {
+				dbprintk("ifname: no netdev exist(%s)\n",p_str);
+				return SWACL_IF_ERROR;
+			}
+			dev_put(lowdev);
+			
+			if( pos >= (SWACL_IF_NAME_MAX_NUM-1)){
+				dbprintk("ifname: too many interface\n");
+				return SWACL_IF_ERROR;
+			}
+			
+			strncpy(rule_entry->bind_ifname[pos],p_str,slen);		
+			pos++;
+		}
 	}
-	if ((lowdev = dev_get_byname(p_str)) == NULL) {
-		dbprintk("ifname: no netdev exist(%s)\n",p_str);
-		return SWACL_IF_ERROR;
-	}
-	dev_put(lowdev);
-	strncpy(rule_entry->bind_ifname,buf,slen);
 	rule_entry->filter_flags |= SWACL_IF_filter_IFNAME;
-	//dbprintk("ifname: parse ok (0x%x)\n",rule_entry->filter_flags);
-
 	return SWACL_IF_SUCCESS;
 
 }
@@ -1115,11 +1184,13 @@ swacl_if_parse_rule_priority(char * param_str,struct swacl_if_rule_entry * rule_
 
 	return SWACL_IF_SUCCESS;
 }
+
 unsigned int
 swacl_if_filter_cmp(struct swacl_if_rule_entry * src_entry,struct swacl_if_rule_entry * dst_entry)
 {
-	int i,j,cmp_b,cmp_prex;
+	int i,j,cmp_b,cmp_prex,num,num1;
 	unsigned int match_filter=0;
+	
 
 	if(src_entry->filter_flags != dst_entry->filter_flags) {
 		if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_1)
@@ -1344,11 +1415,29 @@ swacl_if_filter_cmp(struct swacl_if_rule_entry * src_entry,struct swacl_if_rule_
 					goto not_match_filter;
 				break;
 			case SWACL_IF_filter_IFNAME:
-				if(strcmp(src_entry->bind_ifname,dst_entry->bind_ifname)==0) {
-					match_filter |= SWACL_IF_filter_IFNAME;
-				} else
+				for ( num = 0 ; num < SWACL_IF_NAME_MAX_NUM ; num ++){
+					if(strlen (src_entry->bind_ifname[num]) != 0){
+
+						for ( num1 = 0 ; num1 < SWACL_IF_NAME_MAX_NUM ; num1 ++){
+							if(strlen (dst_entry->bind_ifname[num1]) != 0){
+								if(strcmp(src_entry->bind_ifname[num],dst_entry->bind_ifname[num1])==0) {
+									match_filter |= SWACL_IF_filter_IFNAME;
+									break;
+								}
+						
+							}
+
+						}
+						
+						
+					}
+					if((match_filter & SWACL_IF_filter_IFNAME) == SWACL_IF_filter_IFNAME )
+						break;
+
+				}
+				if((match_filter & SWACL_IF_filter_IFNAME) != SWACL_IF_filter_IFNAME )
 					goto not_match_filter;
-				break;
+				
 			default:
 				break;
 
@@ -1367,6 +1456,95 @@ swacl_if_filter_cmp(struct swacl_if_rule_entry * src_entry,struct swacl_if_rule_
 	}
 not_match_filter:
 	return SWACL_IF_MATCH_NO_FILTER;
+}
+
+int
+swacl_if_parse_act_redirect(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	char s1[2]= {',','\0'};
+	char * p_str=NULL;
+	struct net_device *lowdev;
+	int pos = 0,slen = 0;
+	char * buf = param_str;
+	
+	if(strlen(param_str)==0) {
+		dbprintk("redirect: null string\n");
+		return SWACL_IF_ERROR;
+	}
+	
+	memset(rule_entry->redirect_ifname,0x0,sizeof(rule_entry->redirect_ifname));
+
+	if((p_str = strstr(buf, s1)) == NULL) {
+
+		if(strlen(param_str)==0) {
+			dbprintk("redirect: null string\n");
+			return SWACL_IF_ERROR;
+		}
+
+		p_str = swacl_util_trim(buf);
+
+		if((slen = strlen(p_str)) > IFNAMSIZ) {
+			dbprintk("redirect: name too long error\n");
+			return SWACL_IF_ERROR;
+		}
+		if ((lowdev = dev_get_byname(p_str)) == NULL) {
+			dbprintk("redirect: no netdev exist(%s)\n",p_str);
+			return SWACL_IF_ERROR;
+		}
+		dev_put(lowdev);
+		strncpy(rule_entry->redirect_ifname[0],p_str,slen);
+		
+	} else{
+		while ((p_str = strsep(&buf, s1)) != NULL) {
+
+			p_str = swacl_util_trim(p_str);
+
+			if((slen = strlen(p_str)) > IFNAMSIZ) {
+				dbprintk("redirect: name too long error\n");
+				return SWACL_IF_ERROR;
+			}
+
+			if(slen <=0) {
+				dbprintk("redirect: name is none error\n");
+				return SWACL_IF_ERROR;
+			}
+			if ((lowdev = dev_get_byname(p_str)) == NULL) {
+				dbprintk("redirect: no netdev exist(%s)\n",p_str);
+				return SWACL_IF_ERROR;
+			}
+			dev_put(lowdev);
+			
+			if( pos >= (SWACL_IF_NAME_MAX_NUM-1)){
+				dbprintk("redirect: too many interface\n");
+				return SWACL_IF_ERROR;
+			}
+			
+			strncpy(rule_entry->redirect_ifname[pos],p_str,slen);		
+			pos++;
+		}
+	}
+	rule_entry->action_flags |= SWACL_IF_ACTION_REDIRECT;
+	return SWACL_IF_SUCCESS;
+
+}
+
+int
+swacl_if_act_redirect_to_str(char * param_str,struct swacl_if_rule_entry * rule_entry)
+{
+	int num;
+	for ( num = 0 ; num < SWACL_IF_NAME_MAX_NUM ; num ++){
+		
+		if(strlen (rule_entry->redirect_ifname[num]) != 0){
+			if(num == 0)
+				sprintf(param_str,"%s",rule_entry->redirect_ifname[num]);
+			else{
+				strcat(param_str,",");
+				strcat(param_str,rule_entry->redirect_ifname[num]);
+			}
+		}
+
+	}
+	return 0;
 }
 
 
