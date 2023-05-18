@@ -97,7 +97,7 @@ struct swacl_rule_name_map_id g_swacl_act_rule_mapping[] = {
 	{SWACL_IF_ACTION_RULE_PRIORITY_IDX,"rule_pri",SWACL_IF_ACTION_RULE_PRIORITY,1,"rule ptiority (0 is highest)",swacl_if_parse_rule_priority,swacl_if_rule_priority_to_str},
 	{SWACL_IF_ACTION_PERMIN_IDX,"act_permit",SWACL_IF_ACTION_PERMIN,1,"permit rule action",NULL,NULL},
 	{SWACL_IF_ACTION_DROP_IDX,"act_drop",SWACL_IF_ACTION_DROP,1,"drop rule action",NULL,NULL},
-	{SWACL_IF_ACTION_REDIRECT_IDX,"act_redirect",SWACL_IF_ACTION_REDIRECT,0,"redirect action",swacl_if_parse_act_redirect,swacl_if_act_redirect_to_str},
+	{SWACL_IF_ACTION_REDIRECT_IDX,"act_redirect",SWACL_IF_ACTION_REDIRECT,1,"redirect action",swacl_if_parse_act_redirect,swacl_if_act_redirect_to_str},
 	{SWACL_IF_ACTION_VLANTAG_CHG_IDX,"vlanid_mark",SWACL_IF_ACTION_VLANTAG_CHG,1,"change or vlanid",swacl_if_parse_act_vlan,swacl_if_act_vlan_to_str},
 	{SWACL_IF_ACTION_PBIT_CHG_IDX,"pbit_mark",SWACL_IF_ACTION_PBIT_CHG,1,"chnage or add pbit",swacl_if_parse_act_pbit,swacl_if_act_pbit_to_str},
 	{SWACL_IF_ACTION_RULE_DEL_ALL_IDX,"rule_del_all",SWACL_IF_ACTION_RULE_DEL_ALL,1,"rule delete all",NULL,NULL},
