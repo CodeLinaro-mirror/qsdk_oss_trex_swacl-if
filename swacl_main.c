@@ -45,13 +45,15 @@
 #define SWACL_IF_ACTION_CONFLICT7_FLAGE (SWACL_IF_ACTION_RULE_CLEAR|SWACL_IF_ACTION_RULE_COMMIT)
 
 #define SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE (SWACL_IF_ACTION_PERMIN|SWACL_IF_ACTION_DROP)
+#define SWACL_IF_ACTION_CONFLICT1_PERMIT_FLAGE (SWACL_IF_ACTION_REDIRECT|SWACL_IF_ACTION_DROP)
+
 
 #define SWACL_IF_FILTER_ALL_FLAGE	(SWACL_IF_filter_OUI|SWACL_IF_filter_ETHERTYPE|SWACL_IF_filter_DMAC|SWACL_IF_filter_SMAC \
 	                                 |SWACL_IF_filter_V4_PROTO|SWACL_IF_filter_V6_NXT_HEAD|SWACL_IF_filter_SIP|SWACL_IF_filter_DIP \
 	                                 |SWACL_IF_filter_V6_DIP|SWACL_IF_filter_V6_SIP|SWACL_IF_filter_DPORT|SWACL_IF_filter_SPORT \
 	                                 |SWACL_IF_filter_VLAN|SWACL_IF_filter_VLAN_PRI|SWACL_IF_filter_IFNAME|SWACL_IF_filter_DIP_PRE \
 	                                 |SWACL_IF_filter_SIP_PRE|SWACL_IF_filter_V6_DIP_PRE|SWACL_IF_filter_V6_SIP_PRE|SWACL_IF_filter_DPORT_END \
-	                                 |SWACL_IF_filter_SPORT_END|SWACL_IF_filter_DMAC_PRE|SWACL_IF_filter_SMAC_PRE)
+	                                 |SWACL_IF_filter_SPORT_END|SWACL_IF_filter_DMAC_PRE|SWACL_IF_filter_SMAC_PRE|SWACL_IF_filter_ALL_PACKET)
 struct swacl_rule_name_map_id {
 	unsigned int    idx;
 	char            *swacl_field_name;
@@ -86,6 +88,7 @@ struct swacl_rule_name_map_id g_swacl_rule_mapping[] = {
 	{SWACL_IF_filter_SPORT_END_IDX,"sport_end",SWACL_IF_filter_SPORT_END,1,"sport_end 1026",swacl_if_parse_sport_end,swacl_if_sport_end_to_str},
 	{SWACL_IF_filter_VLAN_IDX,"vlanid",SWACL_IF_filter_VLAN,1,"vlanid 4091",swacl_if_parse_filter_vlan,swacl_if_vlan_to_str},
 	{SWACL_IF_filter_VLAN_PRI_IDX,"pbit",SWACL_IF_filter_VLAN_PRI,1,"pbit 7",swacl_if_parse_filter_vlan_pbit,swacl_if_vlan_pbit_to_str},
+	{SWACL_IF_filter_ALL_PACKET_IDX,"filter_all",SWACL_IF_filter_ALL_PACKET,1,"filter alll packet",NULL,NULL},
 
 } ;
 
@@ -280,7 +283,9 @@ static int swacl_if_commit_global_rule_entry(struct swacl_if_rule_entry * rule_e
 
 	if((rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE) == SWACL_IF_ACTION_CONFLICT_PERMIT_FLAGE)
 		return SWACL_IF_ERROR_PERMIT_CONFLICT;
-
+	if((rule_entry->action_flags & SWACL_IF_ACTION_CONFLICT1_PERMIT_FLAGE) == SWACL_IF_ACTION_CONFLICT1_PERMIT_FLAGE)
+		return SWACL_IF_ERROR_PERMIT_CONFLICT;
+	
 	if((rule_entry->action_flags & SWACL_IF_ACTION_PERMIN) &&  !(rule_entry->action_flags&SWACL_IF_ACTION_VLANTAG_CHG) &&  !(rule_entry->action_flags&SWACL_IF_ACTION_RULE_VLAN_REMOVE))
 		return SWACL_IF_ERROR_PERMIT_CONFLICT1;
 
@@ -474,6 +479,10 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 
 				if((rule_entry_pos->filter_flags & (1<<i))) {
 					switch((1<<i)) {
+					case SWACL_IF_filter_ALL_PACKET:
+						match_filter |= SWACL_IF_filter_ALL_PACKET;
+						i = SWACL_IF_FILTER_BIT_LEN;
+						continue;
 					case SWACL_IF_filter_OUI:
 						if(memcmp(rule_entry_pos->oui,eth_hdr(skb)->h_source,OUI_LEN)!=0) {
 							i = SWACL_IF_FILTER_BIT_LEN;
@@ -866,7 +875,8 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 			dbprintk("before idx[%d] match_filter 0x%x filter_flags 0x%x\n",idx,match_filter
 			         ,rule_entry_pos->filter_flags);
 		}
-		if((match_filter & rule_entry_pos->filter_flags) == rule_entry_pos->filter_flags) {
+		if((match_filter & rule_entry_pos->filter_flags) == rule_entry_pos->filter_flags 
+			|| (match_filter &SWACL_IF_filter_ALL_PACKET)==SWACL_IF_filter_ALL_PACKET ){
 			//do match action
 			match_act = swacl_if_match_action_rule(pskb,rule_entry_pos);
 
@@ -1038,9 +1048,14 @@ swacl_if_cmd_process(char *command)
 
 			if(strcmp(argv[i], g_swacl_rule_mapping[j].swacl_field_name) == 0) {
 
+				if((g_swacl_rule_mapping[j].field_flags&SWACL_IF_filter_ALL_PACKET)){
+					swacl_rule_entry_p->filter_flags |= SWACL_IF_filter_ALL_PACKET;
+					break;
+				}
 				if(!(g_swacl_rule_mapping[j].field_flags & SWACL_IF_FILTER_ALL_FLAGE) ) {
 					continue;
 				}
+				
 				if(g_swacl_rule_mapping[j].parse_filter_func ==NULL)
 					continue;
 

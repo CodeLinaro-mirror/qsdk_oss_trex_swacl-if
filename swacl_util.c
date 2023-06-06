@@ -1201,6 +1201,10 @@ swacl_if_filter_cmp(struct swacl_if_rule_entry * src_entry,struct swacl_if_rule_
 	for(i =0; i<SWACL_IF_FILTER_BIT_LEN; i++) {
 		if((src_entry->filter_flags & (1<<i))) {
 			switch((1<<i)) {
+			case SWACL_IF_filter_ALL_PACKET:
+				if(dst_entry->filter_flags&SWACL_IF_filter_ALL_PACKET)
+					match_filter |= SWACL_IF_filter_ALL_PACKET;
+				break;
 			case SWACL_IF_filter_OUI:
 				if(memcmp(src_entry->oui,dst_entry->oui,OUI_LEN)==0) {
 					match_filter |= SWACL_IF_filter_OUI;
@@ -1449,6 +1453,11 @@ swacl_if_filter_cmp(struct swacl_if_rule_entry * src_entry,struct swacl_if_rule_
 	if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_1)
 		dbprintk("cmp match before: 0x%x-0x%x\n",src_entry->filter_flags,match_filter);
 
+	if((match_filter&(SWACL_IF_filter_IFNAME|SWACL_IF_filter_ALL_PACKET))==(SWACL_IF_filter_IFNAME|SWACL_IF_filter_ALL_PACKET)){
+		if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_1)
+			dbprintk("cmp match all packet: 0x%x-0x%x\n",src_entry->filter_flags,match_filter);
+		return SWACL_IF_MATCH_FILTER_OK;
+	}
 	if((src_entry->filter_flags & match_filter) == src_entry->filter_flags) {
 		if(g_swacl_priv.debug_cmp >= SWACL_IF_DEBUG_LVL_1)
 			dbprintk("cmp match: 0x%x-0x%x\n",src_entry->filter_flags,match_filter);

@@ -73,6 +73,7 @@ enum swacl_filter_field_e {
 	SWACL_IF_filter_SPORT_END       = 0x100000,
 	SWACL_IF_filter_DMAC_PRE        = 0x200000,
 	SWACL_IF_filter_SMAC_PRE        = 0x400000,
+	SWACL_IF_filter_ALL_PACKET      = 0x800000,
 };
 
 enum swacl_action_e {
@@ -129,6 +130,8 @@ enum swacl_if_rule_mapping_e {
 	SWACL_IF_filter_SPORT_END_IDX,
 	SWACL_IF_filter_VLAN_IDX,
 	SWACL_IF_filter_VLAN_PRI_IDX,
+	SWACL_IF_filter_ALL_PACKET_IDX,
+	SWACL_IF_filter_ALL_IDX
 };
 
 struct swacl_if_rule_entry {
