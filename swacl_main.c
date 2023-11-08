@@ -110,7 +110,7 @@ struct swacl_rule_name_map_id g_swacl_act_rule_mapping[] = {
 
 struct swacl_if_priv g_swacl_priv;
 //struct swacl_if_rule_entry g_swacl_rule_entry;
-extern int (*swacl_net_recv) (struct sk_buff ** pskb);
+int (*swacl_net_recv) (struct sk_buff ** pskb);
 
 static int
 swacl_if_get_filter_map_idx(unsigned int umap_idx)
