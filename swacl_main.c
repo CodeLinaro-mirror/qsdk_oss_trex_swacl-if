@@ -885,8 +885,6 @@ swacl_if_handle_frame(struct sk_buff **pskb)
 				         ,rule_entry_pos->filter_flags,match_act);
 			}
 			if(match_act == SWACL_IF_MATCH_ACT_DROP || match_act == SWACL_IF_MATCH_ACT_REDIRECT) {
-
-				atomic_long_inc(&skb->dev->rx_dropped);
 				g_swacl_priv.rx_packets++;
 				g_swacl_priv.rx_dropped++;
 				rule_entry_pos->hit_counter++;
@@ -1349,8 +1347,10 @@ swacl_if_proc_cmd_open(struct inode *inode, struct file *file)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
 	return single_open(file, swacl_if_proc_cmd_read, PDE(inode)->data);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5,17,0)
 	return single_open(file, swacl_if_proc_cmd_read, PDE_DATA(inode));
+#else
+	return single_open(file, swacl_if_proc_cmd_read, pde_data(inode));
 #endif
 
 }
@@ -1360,8 +1360,10 @@ swacl_if_proc_entry_open(struct inode *inode, struct file *file)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
 	return single_open(file, swacl_if_proc_entry_read, PDE(inode)->data);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5,17,0)
 	return single_open(file, swacl_if_proc_entry_read, PDE_DATA(inode));
+#else
+	return single_open(file, swacl_if_proc_entry_read, pde_data(inode));
 #endif
 
 }
@@ -1370,8 +1372,10 @@ swacl_if_proc_debug_open(struct inode *inode, struct file *file)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0)
 	return single_open(file, swacl_if_proc_debug_read, PDE(inode)->data);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5,17,0)
 	return single_open(file, swacl_if_proc_debug_read, PDE_DATA(inode));
+#else
+	return single_open(file, swacl_if_proc_debug_read, pde_data(inode));
 #endif
 
 }
