@@ -21,7 +21,7 @@ all: modules
 modules:
 	#make mk_revision
 	make -C $(K_SRC) CROSS_COMPILE=$(TOOLPREFIX) M=$(shell pwd) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
-	KBUILD_EXTRA_SYMBOLS="$(STAGING_DIR)/pkginfo/sw_hook.symvers" modules
+	KBUILD_EXTRA_SYMBOLS="$(STAGING_DIR)/usr/include/sw-hook/Module.symvers" modules
 	#make -C $(K_SRC) CROSS_COMPILE=$(TOOLPREFIX) SUBDIRS=$(shell pwd) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" modules
 
 install: all
