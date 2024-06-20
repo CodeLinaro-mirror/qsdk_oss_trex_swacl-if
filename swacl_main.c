@@ -61,7 +61,7 @@ struct swacl_rule_name_map_id {
 	int             is_support;
 	char            *help_str;
 	int (*parse_filter_func)(char * param_str,struct swacl_if_rule_entry * rule_entry);
-	int (*to_str_func)(char * param_str,struct swacl_if_rule_entry * rule_entry);
+	int (*to_str_func)(char * param_str,int param_str_len,struct swacl_if_rule_entry * rule_entry);
 };
 
 struct swacl_rule_name_map_id g_swacl_rule_mapping[] = {
@@ -950,6 +950,7 @@ swacl_if_cmd_process(char *command)
 		dbprintk("no memory\n");
 		return -ENOMEM;
 	}
+	memset(swacl_rule_entry_p,0x0,sizeof(struct swacl_if_rule_entry));
 
 	for ( i = 0 ; i < argc ; i++) {
 		if(i+1 >= argc)
@@ -957,7 +958,7 @@ swacl_if_cmd_process(char *command)
 		else
 			param_len = strlen(argv[i+1]);
 		if(param_len > 0 && param_len <SWACL_STRING_PARAM_LEN)
-			sprintf(parse_param,"%s",argv[i+1]);
+			snprintf(parse_param,sizeof(parse_param),"%s",argv[i+1]);
 		else
 			parse_param[0]='\0';
 
@@ -1035,7 +1036,7 @@ swacl_if_cmd_process(char *command)
 			param_len = strlen(argv[i+1]);
 
 		if(param_len > 0 && param_len <SWACL_STRING_PARAM_LEN)
-			sprintf(parse_param,"%s",argv[i+1]);
+			snprintf(parse_param,sizeof(parse_param),"%s",argv[i+1]);
 		else
 			parse_param[0]='\0';
 
@@ -1288,7 +1289,7 @@ swacl_if_proc_entry_read(struct seq_file *seq, void *v)
 					}
 					memset(str_parse,0x0,128);
 					if(g_swacl_rule_mapping[idx].to_str_func!=NULL
-					                && g_swacl_rule_mapping[idx].to_str_func(str_parse,rule_entry_pos) == 0) {
+					                && g_swacl_rule_mapping[idx].to_str_func(str_parse,sizeof(str_parse),rule_entry_pos) == 0) {
 						seq_printf(seq, "%s:%s\n",g_swacl_rule_mapping[idx].swacl_field_name,str_parse);
 					}
 				}
@@ -1311,7 +1312,7 @@ swacl_if_proc_entry_read(struct seq_file *seq, void *v)
 						seq_printf(seq, "action:%s\n",g_swacl_act_rule_mapping[idx].swacl_field_name);
 
 					} else {
-						if(g_swacl_act_rule_mapping[idx].to_str_func(str_parse,rule_entry_pos) == 0) {
+						if(g_swacl_act_rule_mapping[idx].to_str_func(str_parse,sizeof(str_parse),rule_entry_pos) == 0) {
 							seq_printf(seq, "%s:%s\n",g_swacl_act_rule_mapping[idx].swacl_field_name,str_parse);
 						}
 					}
